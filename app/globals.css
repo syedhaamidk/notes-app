@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #fafaf8;
+  --surface: #ffffff;
+  --surface-hover: #f5f4f0;
+  --border: #e8e6e1;
+  --border-light: #f0ede8;
+  --text: #1a1916;
+  --text-secondary: #6b6760;
+  --text-muted: #a09d98;
+  --accent: #2d6a4f;
+  --accent-light: #e8f5ee;
+  --accent-hover: #245a42;
+  --danger: #c0392b;
+  --warning: #d4860b;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow: 0 4px 12px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.04);
+  --font-display: 'Lora', Georgia, serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* Editor styles */
+.note-editor {
+  font-family: var(--font-display);
+  font-size: 16px;
+  line-height: 1.8;
+  color: var(--text);
+  min-height: 400px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+}
+
+.note-editor::placeholder { color: var(--text-muted); font-style: italic; }
+
+/* Note colors */
+.note-cream  { background: #fdf8f0; }
+.note-sage   { background: #f0f4f0; }
+.note-rose   { background: #fdf0f3; }
+.note-sky    { background: #f0f4fd; }
+.note-lavender { background: #f3f0fd; }
+.note-yellow { background: #fdf9e3; }
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade  { animation: fadeIn 0.2s ease; }
+.animate-slide { animation: slideIn 0.2s ease; }
+.animate-scale { animation: scaleIn 0.15s ease; }
+
+/* Transitions */
+.transition-all { transition: all 0.15s ease; }
+
+/* Selection */
+::selection { background: var(--accent-light); color: var(--accent); }
+
+/* Mobile safe area */
+@supports (padding: max(0px)) {
+  .pb-safe { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+}
