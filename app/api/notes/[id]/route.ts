@@ -10,7 +10,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const note = await prisma.note.findFirst({
     where: { id, userId: session.user.id },
-    include: { tags: { include: { tag: true } }, versions: { orderBy: { createdAt: "desc" }, take: 20 } },
+    include: { tags: { include: { tag: true } },  },
   });
 
   if (!note) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -37,10 +37,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       await prisma.noteVersion.create({
         data: { noteId: id, title: existing.title, content: existing.content },
       });
-      // Keep only last 20 versions
-      const versions = await prisma.noteVersion.findMany({ where: { noteId: id }, orderBy: { createdAt: "desc" } });
-      if (versions.length > 20) {
-        await prisma.noteVersion.deleteMany({ where: { id: { in: versions.slice(20).map(v => v.id) } } });
+
+
+
+
       }
     }
   }
@@ -53,7 +53,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         tags: { deleteMany: {}, create: tagIds.map((tagId: string) => ({ tagId })) },
       }),
     },
-    include: { tags: { include: { tag: true } }, versions: { orderBy: { createdAt: "desc" }, take: 20 } },
+    include: { tags: { include: { tag: true } },  },
   });
 
   return NextResponse.json(note);
