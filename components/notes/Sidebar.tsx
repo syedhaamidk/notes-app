@@ -20,11 +20,12 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onNewNote: () => void;
+  mobileOnly?: boolean;
 }
 
 const TAG_COLORS = ["#6b7280","#1a1916","#1d4ed8","#7c3aed","#db2777","#dc2626","#d97706","#0891b2","#059669"];
 
-export function Sidebar({ user, tags, filter, selectedTag, noteCount, onFilterChange, onTagSelect, onTagsChange, open, onClose, onNewNote }: Props) {
+export function Sidebar({ user, tags, filter, selectedTag, noteCount, onFilterChange, onTagSelect, onTagsChange, open, onClose, onNewNote, mobileOnly }: Props) {
   const [addingTag, setAddingTag] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
@@ -80,7 +81,7 @@ export function Sidebar({ user, tags, filter, selectedTag, noteCount, onFilterCh
         <div className="fixed inset-0 z-30 md:hidden" style={{ background: "rgba(0,0,0,0.4)" }} onClick={onClose} />
       )}
 
-      <aside className={`
+      <aside className={`${mobileOnly ? "md:hidden" : ""}
         fixed md:relative z-40 md:z-auto flex flex-col h-full
         transition-transform duration-250
         ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}

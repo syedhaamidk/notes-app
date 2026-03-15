@@ -196,3 +196,75 @@ body {
 @supports (padding: max(0px)) {
   .pb-safe { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
 }
+
+/* ===== MOBILE OPTIMIZATIONS ===== */
+
+/* Scrollable format toolbar on mobile */
+@media (max-width: 767px) {
+  .format-toolbar {
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 4px 8px;
+    gap: 1px;
+  }
+  .format-toolbar::-webkit-scrollbar { display: none; }
+
+  .format-btn {
+    min-width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    font-size: 14px;
+  }
+
+  .format-divider {
+    flex-shrink: 0;
+    margin: 0 3px;
+  }
+
+  /* Bigger tap targets */
+  .mobile-tap {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Dropdowns always open down and stay on screen */
+  .dropdown-menu {
+    position: fixed !important;
+    left: 8px !important;
+    right: 8px !important;
+    top: auto !important;
+    bottom: 80px !important;
+    width: auto !important;
+    max-height: 60vh;
+    overflow-y: auto;
+    border-radius: 16px !important;
+    z-index: 100 !important;
+  }
+
+  /* Bigger editor text on mobile */
+  .rich-editor {
+    font-size: 17px;
+    line-height: 1.9;
+  }
+
+  /* Full screen modals on mobile */
+  .modal-mobile {
+    border-radius: 20px 20px 0 0 !important;
+    max-height: 85vh;
+  }
+}
+
+/* Swipe hint animation */
+@keyframes swipeHint {
+  0% { transform: translateX(0); opacity: 0.6; }
+  50% { transform: translateX(8px); opacity: 1; }
+  100% { transform: translateX(0); opacity: 0.6; }
+}
+
+/* Touch feedback */
+@media (hover: none) {
+  button:active { opacity: 0.7; transform: scale(0.97); }
+}

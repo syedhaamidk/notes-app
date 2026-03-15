@@ -5,7 +5,7 @@ import { Sidebar } from "./Sidebar";
 import { NotesList } from "./NotesList";
 import { NoteEditor } from "./NoteEditor";
 import { MobileNav } from "./MobileNav";
-import { PanelLeftClose, PanelLeftOpen, Search, Plus } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, Search, Plus, Menu } from "lucide-react";
 import toast from "react-hot-toast";
 
 interface Props {
@@ -24,6 +24,29 @@ export function DashboardLayout({ user }: Props) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileView, setMobileView] = useState<"list" | "editor">("list");
   const searchRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<{ insertText: (t: string) => void } | null>(null);
+
+  // Swipe to go back
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+    // Swipe right > 80px and mostly horizontal = go back to list
+    if (dx > 80 && dy < 60 && mobileView === "editor") {
+      setMobileView("list");
+    }
+    // Swipe right from left edge = open sidebar
+    if (dx > 60 && dy < 60 && touchStartX.current < 30 && mobileView === "list") {
+      setSidebarOpen(true);
+    }
+  };
 
   const fetchNotes = useCallback(async () => {
     const params = new URLSearchParams({ filter });
@@ -44,10 +67,11 @@ export function DashboardLayout({ user }: Props) {
   useEffect(() => { fetchNotes(); }, [fetchNotes]);
   useEffect(() => { fetchTags(); }, [fetchTags]);
 
-  // Restore sidebar collapse preference
   useEffect(() => {
-    const stored = localStorage.getItem("sidebarCollapsed");
-    if (stored === "true") setSidebarCollapsed(true);
+    if (window.innerWidth >= 768) {
+      const stored = localStorage.getItem("sidebarCollapsed");
+      if (stored === "true") setSidebarCollapsed(true);
+    }
   }, []);
 
   const toggleSidebar = () => {
@@ -56,10 +80,9 @@ export function DashboardLayout({ user }: Props) {
     localStorage.setItem("sidebarCollapsed", String(next));
   };
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey)) {
+      if (e.metaKey || e.ctrlKey) {
         if (e.key === "n") { e.preventDefault(); createNote(); }
         if (e.key === "b") { e.preventDefault(); toggleSidebar(); }
         if (e.key === "f") { e.preventDefault(); searchRef.current?.focus(); }
@@ -117,14 +140,17 @@ export function DashboardLayout({ user }: Props) {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
-      {/* Sidebar */}
-      <div style={{
+    <div
+      className="flex h-screen overflow-hidden"
+      style={{ background: "var(--bg)" }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}>
+
+      {/* Desktop sidebar */}
+      <div className="hidden md:block flex-shrink-0" style={{
         width: sidebarCollapsed ? "0px" : "220px",
-        minWidth: sidebarCollapsed ? "0px" : "220px",
         overflow: "hidden",
-        transition: "width 0.25s ease, min-width 0.25s ease",
-        flexShrink: 0,
+        transition: "width 0.25s ease",
       }}>
         <Sidebar
           user={user} tags={tags} filter={filter} selectedTag={selectedTag}
@@ -132,46 +158,49 @@ export function DashboardLayout({ user }: Props) {
           onFilterChange={(f) => { setFilter(f); setSelectedTag(null); setSelectedNote(null); }}
           onTagSelect={(t) => { setSelectedTag(t); setFilter("all"); setSelectedNote(null); }}
           onTagsChange={fetchTags}
-          open={sidebarOpen} onClose={() => setSidebarOpen(false)}
+          open={false} onClose={() => {}}
           onNewNote={createNote}
         />
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Notes list panel */}
-        <div className={`flex flex-col border-r ${mobileView === "editor" ? "hidden md:flex" : "flex"} md:flex`}
-          style={{ width: "300px", minWidth: "260px", maxWidth: "340px", borderColor: "var(--border)", background: "var(--surface)", flexShrink: 0 }}>
+      {/* Mobile sidebar drawer */}
+      <Sidebar
+        user={user} tags={tags} filter={filter} selectedTag={selectedTag}
+        noteCount={notes.length}
+        onFilterChange={(f) => { setFilter(f); setSelectedTag(null); setSelectedNote(null); setSidebarOpen(false); }}
+        onTagSelect={(t) => { setSelectedTag(t); setFilter("all"); setSelectedNote(null); setSidebarOpen(false); }}
+        onTagsChange={fetchTags}
+        open={sidebarOpen} onClose={() => setSidebarOpen(false)}
+        onNewNote={() => { createNote(); setSidebarOpen(false); }}
+        mobileOnly
+      />
 
-          {/* List header */}
+      <div className="flex flex-1 overflow-hidden min-w-0">
+        {/* Notes list */}
+        <div className={`flex flex-col border-r flex-shrink-0 ${mobileView === "editor" ? "hidden md:flex" : "flex"}`}
+          style={{ width: "300px", minWidth: "260px", maxWidth: "320px", borderColor: "var(--border)", background: "var(--surface)" }}>
+
           <div className="flex items-center gap-2 px-3 py-2.5 border-b" style={{ borderColor: "var(--border)" }}>
-            {/* Sidebar toggle */}
             <button
-              onClick={() => { if (window.innerWidth < 768) setSidebarOpen(true); else toggleSidebar(); }}
-              className="p-1.5 rounded-lg transition-all hover:opacity-70 flex-shrink-0"
+              className="flex-shrink-0 p-2 rounded-lg transition-all hover:opacity-70"
               style={{ color: "var(--text-muted)" }}
-              title="Toggle sidebar (⌘B)">
-              {sidebarCollapsed
-                ? <PanelLeftOpen size={15} />
-                : <PanelLeftClose size={15} />}
+              onClick={() => { if (window.innerWidth < 768) setSidebarOpen(true); else toggleSidebar(); }}>
+              {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <Menu size={15} />}
             </button>
-
-            <div className="flex-1 relative">
+            <div className="flex-1 relative min-w-0">
               <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
               <input
-                ref={searchRef}
-                value={search}
+                ref={searchRef} value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search… (⌘F)"
-                className="w-full pl-7 pr-3 py-1.5 rounded-lg text-sm"
-                style={{ background: "var(--surface-hover)", border: "1px solid var(--border-light)", color: "var(--text)", fontFamily: "var(--font-body)", outline: "none", fontSize: "13px" }}
+                placeholder="Search…"
+                className="w-full pl-7 pr-3 py-2 rounded-lg text-sm"
+                style={{ background: "var(--surface-hover)", border: "1px solid var(--border-light)", color: "var(--text)", fontFamily: "var(--font-body)", outline: "none", fontSize: "14px" }}
               />
             </div>
-
             <button onClick={createNote}
-              className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:opacity-70"
-              style={{ background: "var(--text)", color: "var(--bg)" }}
-              title="New note (⌘N)">
-              <Plus size={14} />
+              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:opacity-70"
+              style={{ background: "var(--text)", color: "var(--bg)" }}>
+              <Plus size={15} />
             </button>
           </div>
 
@@ -186,7 +215,7 @@ export function DashboardLayout({ user }: Props) {
         </div>
 
         {/* Editor */}
-        <div className={`flex-1 overflow-hidden ${mobileView === "list" ? "hidden md:flex" : "flex"} md:flex flex-col`}>
+        <div className={`flex-1 overflow-hidden min-w-0 ${mobileView === "list" ? "hidden md:flex" : "flex"} flex-col`}>
           {selectedNote ? (
             <NoteEditor
               key={selectedNote.id}
@@ -199,24 +228,39 @@ export function DashboardLayout({ user }: Props) {
               onDuplicate={duplicateNote}
             />
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center gap-3">
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 pb-20 md:pb-0">
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
                 style={{ background: "var(--surface-hover)" }}>
                 <span style={{ fontFamily: "var(--font-display)", fontSize: "20px", color: "var(--text-muted)" }}>n</span>
               </div>
               <p style={{ fontFamily: "var(--font-display)", fontSize: "15px", color: "var(--text-secondary)" }}>No note selected</p>
-              <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>⌘N to create · ⌘B to toggle sidebar</p>
+              <p className="hidden md:block" style={{ fontSize: "12px", color: "var(--text-muted)" }}>⌘N to create · ⌘B to toggle sidebar</p>
+              <p className="md:hidden" style={{ fontSize: "12px", color: "var(--text-muted)" }}>Tap + New to start</p>
               <button onClick={createNote}
-                className="mt-1 flex items-center gap-2 px-4 py-2 rounded-xl text-sm transition-all hover:opacity-80"
+                className="mt-1 flex items-center gap-2 px-5 py-3 rounded-xl text-sm transition-all hover:opacity-80"
                 style={{ background: "var(--text)", color: "var(--bg)", fontFamily: "var(--font-body)" }}>
-                <Plus size={13} /> New note
+                <Plus size={14} /> New note
               </button>
             </div>
           )}
         </div>
       </div>
 
-      <MobileNav mobileView={mobileView} onBack={() => setMobileView("list")} onNew={createNote} hasNote={!!selectedNote} />
+      <MobileNav
+        mobileView={mobileView}
+        onBack={() => setMobileView("list")}
+        onNew={createNote}
+        hasNote={!!selectedNote}
+        onMenuOpen={() => setSidebarOpen(true)}
+        onVoiceInsert={(text) => {
+          // Find the editor's contenteditable and insert text
+          const editor = document.querySelector('.rich-editor') as HTMLElement;
+          if (editor) {
+            editor.focus();
+            document.execCommand('insertText', false, text);
+          }
+        }}
+      />
     </div>
   );
 }

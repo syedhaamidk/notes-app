@@ -31,6 +31,7 @@ export function ExportModal({ note, onClose }: Props) {
   const [template, setTemplate] = useState<Template>("minimal");
   const [exportFormat, setExportFormat] = useState<ExportFormat>("pdf");
   const [exporting, setExporting] = useState(false);
+  const [showWatermark, setShowWatermark] = useState(true);
   const [customBg, setCustomBg] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
@@ -101,6 +102,7 @@ export function ExportModal({ note, onClose }: Props) {
 
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
           <h2 style={{ fontFamily: "var(--font-display)", fontSize: "17px", color: "var(--text)" }}>Export Note</h2>
+          <div className="flex items-center gap-2"><button onClick={() => setShowWatermark(!showWatermark)} className="flex items-center gap-2 text-xs" style={{color:"var(--text-muted)",fontFamily:"var(--font-body)"}}><div className="w-8 h-4 rounded-full transition-all relative" style={{background:showWatermark?"var(--text)":"var(--border)"}}><div className="absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all" style={{left:showWatermark?"calc(100% - 14px)":"2px"}}/></div>{showWatermark?"Watermark on":"No watermark"}</button></div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-black/5 transition-all">
             <X size={15} style={{ color: "var(--text-secondary)" }} />
           </button>
@@ -153,12 +155,13 @@ export function ExportModal({ note, onClose }: Props) {
           <div className="flex-1 p-4 overflow-auto" style={{ background: "var(--bg)" }}>
             <p style={{ fontSize: "10px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "10px" }}>Preview</p>
             <div style={{ transform: "scale(0.82)", transformOrigin: "top left", width: "122%" }}>
-              <ExportPreview ref={previewRef} note={note} template={template} customBg={customBg} />
+              <ExportPreview ref={previewRef} note={note} template={template} customBg={customBg} showWatermark={showWatermark} />
             </div>
           </div>
         </div>
 
-        <div className="px-5 py-3.5 border-t flex justify-end gap-2" style={{ borderColor: "var(--border)" }}>
+        <div className="px-5 py-3.5 border-t flex items-center justify-between gap-2" style={{ borderColor: "var(--border)" }}>
+          <div className="flex items-center gap-2"><button onClick={() => setShowWatermark(!showWatermark)} className="flex items-center gap-2 text-xs" style={{color:"var(--text-muted)",fontFamily:"var(--font-body)"}}><div className="w-8 h-4 rounded-full transition-all relative" style={{background:showWatermark?"var(--text)":"var(--border)"}}><div className="absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all" style={{left:showWatermark?"calc(100% - 14px)":"2px"}}/></div>{showWatermark?"Watermark on":"No watermark"}</button></div>
           <button onClick={onClose}
             className="px-4 py-2 rounded-xl text-sm"
             style={{ background: "var(--surface-hover)", color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
@@ -225,8 +228,8 @@ const ExportPreview = React.forwardRef<HTMLDivElement, { note: Note; template: T
             </div>
           )}
           <div style={{ fontSize: "14px", lineHeight: "1.85", whiteSpace: "pre-wrap", opacity: 0.9 }}>{contentText || "No content yet."}</div>
-          <div style={{ marginTop: "40px", paddingTop: "14px", borderTop: `1px solid ${accent}18` }}>
-            <p style={{ fontSize: "9px", opacity: 0.35, letterSpacing: "0.12em" }}>EXPORTED FROM NOTA · {new Date().getFullYear()}</p>
+          {showWatermark && <div style={{ marginTop: "40px", paddingTop: "14px", borderTop: `1px solid ${accent}18` }}>
+            <p style={{ fontSize: "9px", opacity: 0.35, letterSpacing: "0.12em" }}>EXPORTED FROM NOTA · {new Date().getFullYear()}</p></div>}
           </div>
         </div>
       </div>

@@ -8,9 +8,10 @@ import {
   Share2, History, Bold, Italic, Underline, List,
   ListOrdered, Quote, Code, Minus, Link,
   Image as ImageIcon, Check, X, Table, Sparkles,
-  ChevronDown
+  ChevronDown, Mic
 } from "lucide-react";
 import { ExportModal } from "../export/ExportModal";
+import { VoiceRecorder } from "./VoiceRecorder";
 import toast from "react-hot-toast";
 
 interface Props {
@@ -56,6 +57,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showVoice, setShowVoice] = useState(false);
   const [showAI, setShowAI] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState("");
@@ -335,6 +337,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
             </div>
           </Dropdown>
 
+          <TBtn onClick={() => setShowVoice(true)} title="Voice to text"><Mic size={13} /></TBtn>
           <TBtn onClick={() => setShowExport(true)} title="Export"><Download size={13} /></TBtn>
 
           <Dropdown trigger={<TBtn onClick={() => {}}><MoreHorizontal size={13} /></TBtn>} show={showMenu} setShow={setShowMenu} others={[setShowEmojiPicker,setShowColorPicker,setShowTagPicker,setShowAI]}>
@@ -423,6 +426,17 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
         </div>
       </div>
 
+      {showVoice && (
+        <VoiceRecorder
+          onTranscript={(text) => {
+            if (editorRef.current) {
+              editorRef.current.innerHTML += (editorRef.current.innerHTML ? "<p>" + text.replace(/\n/g, "<br>") + "</p>" : text.replace(/\n/g, "<br>"));
+              handleContentChange();
+            }
+          }}
+          onClose={() => setShowVoice(false)}
+        />
+      )}
       {showExport && <ExportModal note={note} onClose={() => setShowExport(false)} />}
 
       {showShareModal && (
