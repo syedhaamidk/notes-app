@@ -60,6 +60,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(note.tags.map(nt => nt.tagId));
   const [wordCount, setWordCount] = useState(note.wordCount || 0);
   const [localNote, setLocalNote] = useState(note);
+  const [floatingToolbar, setFloatingToolbar] = useState<{ el: HTMLElement; type: "image"|"table"; x: number; y: number } | null>(null);
 
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimeout = useRef<NodeJS.Timeout>();
@@ -265,15 +266,86 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   const handleContextMenu = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     const isImg = target.tagName === "IMG";
-    const tbl = target.closest("table");
+    const tbl = target.closest("table") as HTMLElement | null;
     if (isImg || tbl) {
       e.preventDefault();
-      if (confirm(`Delete this ${isImg ? "image" : "table"}?`)) {
-        const el = isImg ? target : tbl;
-        el?.parentNode?.removeChild(el as Node);
-        handleContentChange();
-      }
+      const el = isImg ? target : tbl!;
+      const rect = el.getBoundingClientRect();
+      setFloatingToolbar({ el, type: isImg ? "image" : "table", x: rect.left, y: rect.top });
     }
+  };
+
+  const handleEditorClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const isImg = target.tagName === "IMG";
+    const tbl = target.closest("table") as HTMLElement | null;
+    if (isImg || tbl) {
+      const el = isImg ? target : tbl!;
+      const rect = el.getBoundingClientRect();
+      setFloatingToolbar({ el, type: isImg ? "image" : "table", x: rect.left, y: rect.top });
+    } else {
+      setFloatingToolbar(null);
+    }
+    closeAll();
+  };
+
+  const floatingDelete = () => {
+    if (!floatingToolbar) return;
+    floatingToolbar.el.parentNode?.removeChild(floatingToolbar.el);
+    setFloatingToolbar(null);
+    handleContentChange();
+    toast.success("Deleted");
+  };
+
+  const floatingMove = (dir: "up"|"down") => {
+    if (!floatingToolbar) return;
+    const el = floatingToolbar.el;
+    const parent = el.parentNode;
+    if (!parent) return;
+    if (dir === "up") {
+      const prev = el.previousElementSibling;
+      if (prev) parent.insertBefore(el, prev);
+    } else {
+      const next = el.nextElementSibling;
+      if (next) parent.insertBefore(next, el);
+    }
+    handleContentChange();
+    setTimeout(() => {
+      const rect = el.getBoundingClientRect();
+      setFloatingToolbar(f => f ? { ...f, x: rect.left, y: rect.top } : null);
+    }, 50);
+  };
+
+  const tableAddRow = () => {
+    if (!floatingToolbar || floatingToolbar.type !== "table") return;
+    const tbody = floatingToolbar.el.querySelector("tbody");
+    if (!tbody) return;
+    const cols = tbody.querySelector("tr")?.children.length || 3;
+    const tr = document.createElement("tr");
+    for (let i = 0; i < cols; i++) {
+      const td = document.createElement("td");
+      td.contentEditable = "true";
+      td.style.cssText = "border:1px solid var(--border);padding:8px 12px;min-width:80px;";
+      td.innerHTML = "&nbsp;";
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+    handleContentChange();
+  };
+
+  const tableAddCol = () => {
+    if (!floatingToolbar || floatingToolbar.type !== "table") return;
+    const rows = floatingToolbar.el.querySelectorAll("tr");
+    rows.forEach((row, i) => {
+      const cell = i === 0 ? document.createElement("th") : document.createElement("td");
+      cell.contentEditable = "true";
+      cell.style.cssText = i === 0
+        ? "border:1px solid var(--border);padding:8px 12px;min-width:80px;font-weight:600;background:var(--surface-hover);"
+        : "border:1px solid var(--border);padding:8px 12px;min-width:80px;";
+      cell.innerHTML = "&nbsp;";
+      row.appendChild(cell);
+    });
+    handleContentChange();
   };
 
   const toggle = (m: string) => setOpenMenu(openMenu === m ? null : m);
@@ -553,6 +625,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
               data-placeholder="Start writing…"
               onInput={handleContentChange}
               onContextMenu={handleContextMenu}
+              onClick={handleEditorClick}
               onPaste={e => {
                 e.preventDefault();
                 const html = e.clipboardData.getData("text/html");
@@ -619,6 +692,76 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
       )}
 
       {showExport && <ExportModal note={localNote} onClose={() => setShowExport(false)} />}
+
+      {/* Floating element toolbar */}
+      {floatingToolbar && (
+        <div
+          style={{
+            position: "fixed",
+            top: floatingToolbar.y - 44,
+            left: floatingToolbar.x,
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            gap: "2px",
+            background: "var(--surface-elevated, #1f1f1f)",
+            border: "1px solid var(--border)",
+            borderRadius: "10px",
+            padding: "4px",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+          }}
+          onMouseDown={e => e.preventDefault()}
+        >
+          <button onClick={() => floatingMove("up")} title="Move up"
+            style={{ padding:"4px 8px", borderRadius:"6px", border:"none", background:"transparent",
+              color:"var(--text-secondary)", cursor:"pointer", fontSize:"13px" }}
+            onMouseEnter={e => (e.currentTarget.style.background="var(--surface-hover)")}
+            onMouseLeave={e => (e.currentTarget.style.background="transparent")}>
+            ↑
+          </button>
+          <button onClick={() => floatingMove("down")} title="Move down"
+            style={{ padding:"4px 8px", borderRadius:"6px", border:"none", background:"transparent",
+              color:"var(--text-secondary)", cursor:"pointer", fontSize:"13px" }}
+            onMouseEnter={e => (e.currentTarget.style.background="var(--surface-hover)")}
+            onMouseLeave={e => (e.currentTarget.style.background="transparent")}>
+            ↓
+          </button>
+          {floatingToolbar.type === "table" && (
+            <>
+              <div style={{ width:"1px", height:"16px", background:"var(--border)", margin:"0 2px" }} />
+              <button onClick={tableAddRow} title="Add row"
+                style={{ padding:"4px 8px", borderRadius:"6px", border:"none", background:"transparent",
+                  color:"var(--text-secondary)", cursor:"pointer", fontSize:"11px", whiteSpace:"nowrap" }}
+                onMouseEnter={e => (e.currentTarget.style.background="var(--surface-hover)")}
+                onMouseLeave={e => (e.currentTarget.style.background="transparent")}>
+                +row
+              </button>
+              <button onClick={tableAddCol} title="Add column"
+                style={{ padding:"4px 8px", borderRadius:"6px", border:"none", background:"transparent",
+                  color:"var(--text-secondary)", cursor:"pointer", fontSize:"11px", whiteSpace:"nowrap" }}
+                onMouseEnter={e => (e.currentTarget.style.background="var(--surface-hover)")}
+                onMouseLeave={e => (e.currentTarget.style.background="transparent")}>
+                +col
+              </button>
+            </>
+          )}
+          <div style={{ width:"1px", height:"16px", background:"var(--border)", margin:"0 2px" }} />
+          <button onClick={floatingDelete} title="Delete"
+            style={{ padding:"4px 8px", borderRadius:"6px", border:"none", background:"transparent",
+              color:"#cc0000", cursor:"pointer", fontSize:"13px" }}
+            onMouseEnter={e => (e.currentTarget.style.background="rgba(204,0,0,0.08)")}
+            onMouseLeave={e => (e.currentTarget.style.background="transparent")}>
+            ✕
+          </button>
+          <button onClick={() => setFloatingToolbar(null)} title="Dismiss"
+            style={{ padding:"4px 6px", borderRadius:"6px", border:"none", background:"transparent",
+              color:"var(--text-muted)", cursor:"pointer", fontSize:"11px" }}
+            onMouseEnter={e => (e.currentTarget.style.background="var(--surface-hover)")}
+            onMouseLeave={e => (e.currentTarget.style.background="transparent")}>
+            esc
+          </button>
+        </div>
+      )}
       {showVoice && <VoiceRecorder onTranscript={handleVoiceInsert} onClose={() => setShowVoice(false)} />}
     </div>
   );

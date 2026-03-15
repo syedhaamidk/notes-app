@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import { Note } from "@/types";
-import { X, Download, Upload } from "lucide-react";
+import { X, Download, Upload, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 import { format as dateFns } from "date-fns";
 import toast from "react-hot-toast";
 import React from "react";
@@ -26,13 +26,58 @@ const FORMATS: { id: ExportFormat; label: string }[] = [
   { id: "md",  label: "Markdown" },
 ];
 
+const AI_TONES = [
+  { id: "professional", label: "Professional" },
+  { id: "casual",       label: "Casual" },
+  { id: "creative",     label: "Creative" },
+  { id: "academic",     label: "Academic" },
+  { id: "minimal",      label: "Minimal" },
+];
+
+const AI_LENGTHS = [
+  { id: "brief",    label: "Brief" },
+  { id: "medium",   label: "Medium" },
+  { id: "detailed", label: "Detailed" },
+];
+
 export function ExportModal({ note, onClose }: Props) {
   const [template, setTemplate] = useState<Template>("minimal");
   const [exportFormat, setExportFormat] = useState<ExportFormat>("pdf");
   const [exporting, setExporting] = useState(false);
   const [showWatermark, setShowWatermark] = useState(true);
   const [customBg, setCustomBg] = useState<string | null>(null);
+  const [showAIGen, setShowAIGen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiTone, setAiTone] = useState("professional");
+  const [aiLength, setAiLength] = useState("medium");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [generatedContent, setGeneratedContent] = useState<string | null>(null);
+  const [useGenerated, setUseGenerated] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
+
+  const handleGenerate = async () => {
+    if (!aiPrompt.trim()) { toast.error("Describe what you want first!"); return; }
+    setAiGenerating(true);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "template",
+          content: `${aiPrompt}. Tone: ${aiTone}. Length: ${aiLength}. Return clean HTML with h1, h2, h3, p, ul, li, ol, strong, em tags only. No html/body/head/style tags.`,
+        }),
+      });
+      const data = await res.json();
+      if (data.result) {
+        setGeneratedContent(data.result);
+        setUseGenerated(true);
+        toast.success("Template generated!");
+      } else {
+        toast.error(data.error || "Generation failed");
+      }
+    } catch { toast.error("Network error"); }
+    setAiGenerating(false);
+  };
 
   const handleCustomUpload = () => {
     const input = document.createElement("input");
@@ -154,13 +199,111 @@ export function ExportModal({ note, onClose }: Props) {
                 ))}
               </div>
             </div>
+
+            {/* AI Generator */}
+            <div>
+              <button
+                onClick={() => setShowAIGen(!showAIGen)}
+                className="w-full flex items-center justify-between"
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "0" }}>
+                <p style={{ fontSize: "10px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                  ✦ AI Generate
+                </p>
+                {showAIGen
+                  ? <ChevronUp size={12} style={{ color: "var(--text-muted)" }} />
+                  : <ChevronDown size={12} style={{ color: "var(--text-muted)" }} />}
+              </button>
+
+              {showAIGen && (
+                <div className="mt-3 space-y-3 animate-fade">
+                  <textarea
+                    value={aiPrompt}
+                    onChange={e => setAiPrompt(e.target.value)}
+                    placeholder="Describe your note… e.g. 'weekly team standup', 'book review of 1984', 'travel plan for Tokyo'"
+                    rows={3}
+                    style={{
+                      width: "100%", resize: "none", borderRadius: "10px", padding: "8px 10px",
+                      background: "var(--surface-hover)", border: "1px solid var(--border)",
+                      color: "var(--text)", fontSize: "12px", fontFamily: "var(--font-body)",
+                      outline: "none", lineHeight: "1.5",
+                    }}
+                  />
+
+                  <div>
+                    <p style={{ fontSize: "10px", color: "var(--text-muted)", marginBottom: "6px" }}>Tone</p>
+                    <div className="flex flex-wrap gap-1">
+                      {AI_TONES.map(t => (
+                        <button key={t.id} onClick={() => setAiTone(t.id)}
+                          style={{
+                            padding: "3px 10px", borderRadius: "20px", fontSize: "11px",
+                            fontFamily: "var(--font-body)", cursor: "pointer",
+                            background: aiTone === t.id ? "var(--text)" : "var(--surface-hover)",
+                            color: aiTone === t.id ? "var(--bg)" : "var(--text-secondary)",
+                            border: `1px solid ${aiTone === t.id ? "var(--text)" : "var(--border-light)"}`,
+                          }}>
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p style={{ fontSize: "10px", color: "var(--text-muted)", marginBottom: "6px" }}>Length</p>
+                    <div className="flex gap-1">
+                      {AI_LENGTHS.map(l => (
+                        <button key={l.id} onClick={() => setAiLength(l.id)}
+                          style={{
+                            flex: 1, padding: "4px 0", borderRadius: "8px", fontSize: "11px",
+                            fontFamily: "var(--font-body)", cursor: "pointer",
+                            background: aiLength === l.id ? "var(--text)" : "var(--surface-hover)",
+                            color: aiLength === l.id ? "var(--bg)" : "var(--text-secondary)",
+                            border: `1px solid ${aiLength === l.id ? "var(--text)" : "var(--border-light)"}`,
+                          }}>
+                          {l.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button onClick={handleGenerate} disabled={aiGenerating}
+                    className="w-full py-2 rounded-lg text-xs flex items-center justify-center gap-2 transition-all hover:opacity-80"
+                    style={{
+                      background: "#5DCAA5", color: "#fff", fontFamily: "var(--font-body)",
+                      border: "none", cursor: aiGenerating ? "wait" : "pointer",
+                      opacity: aiGenerating ? 0.7 : 1,
+                    }}>
+                    {aiGenerating
+                      ? <><div className="w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor: "rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> Generating…</>
+                      : <><Sparkles size={11} /> Generate Content</>}
+                  </button>
+
+                  {generatedContent && (
+                    <div className="animate-fade">
+                      <div className="p-2 rounded-lg" style={{ background: "var(--surface-hover)", border: "1px solid var(--border)" }}>
+                        <p style={{ fontSize: "10px", color: "#5DCAA5", marginBottom: "4px", fontWeight: 500 }}>✓ Content ready</p>
+                        <p style={{ fontSize: "10px", color: "var(--text-muted)", lineHeight: "1.5" }}>
+                          {generatedContent.replace(/<[^>]*>/g, "").slice(0, 80)}…
+                        </p>
+                      </div>
+                      <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                        <input type="checkbox" checked={useGenerated} onChange={e => setUseGenerated(e.target.checked)}
+                          style={{ accentColor: "#5DCAA5" }} />
+                        <span style={{ fontSize: "11px", color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                          Use generated content in export
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Preview */}
           <div className="flex-1 p-4 overflow-auto" style={{ background: "var(--bg)" }}>
             <p style={{ fontSize: "10px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "10px" }}>Preview</p>
             <div style={{ transform: "scale(0.82)", transformOrigin: "top left", width: "122%" }}>
-              <ExportPreview ref={previewRef} note={note} template={template} customBg={customBg} showWatermark={showWatermark} />
+              <ExportPreview ref={previewRef} note={note} template={template} customBg={customBg} showWatermark={showWatermark} overrideContent={useGenerated && generatedContent ? generatedContent : undefined} />
             </div>
           </div>
         </div>
@@ -201,10 +344,12 @@ export function ExportModal({ note, onClose }: Props) {
 }
 
 const ExportPreview = React.forwardRef<HTMLDivElement, {
-  note: Note; template: Template; customBg: string | null; showWatermark: boolean;
-}>(({ note, template, customBg, showWatermark }, ref) => {
+  note: Note; template: Template; customBg: string | null; showWatermark: boolean; overrideContent?: string;
+}>(({ note, template, customBg, showWatermark, overrideContent }, ref) => {
   const date = dateFns(new Date(note.updatedAt), "MMMM d, yyyy");
-  const contentText = note.content.replace(/<[^>]*>/g, "").trim();
+  const contentText = overrideContent
+    ? overrideContent.replace(/<[^>]*>/g, "").trim()
+    : note.content.replace(/<[^>]*>/g, "").trim();
 
   const styles: Record<Template, React.CSSProperties> = {
     minimal:  { background: "#ffffff",                                           padding: "56px 52px", fontFamily: "Georgia,serif", minHeight: "500px", color: "#1a1916" },
