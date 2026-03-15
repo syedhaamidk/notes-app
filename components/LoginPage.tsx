@@ -44,14 +44,14 @@ function FloatingCard({ note, index }: { note: typeof FLOATING_NOTES[0]; index: 
         borderRadius: "12px",
         padding: "14px 16px",
         width: "165px",
-        opacity: hovered ? 0.95 : 0.45,
+        opacity: hovered ? 1 : 0.55,
         cursor: "pointer",
         transition: "transform 0.3s cubic-bezier(0.34,1.56,0.64,1), opacity 0.2s ease, background 0.2s ease, box-shadow 0.3s ease",
         boxShadow: hovered ? "0 20px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)" : "none",
         zIndex: hovered ? 20 : 1,
       }}>
       <div style={{ position: "absolute", top: "10px", right: "10px", width: "6px", height: "6px", borderRadius: "50%", background: hovered ? "#4a4744" : "#2a2825" }} />
-      <pre style={{ fontFamily: "'DM Sans',sans-serif", fontSize: "11px", color: hovered ? "#9a9690" : "#3a3835", lineHeight: "1.65", whiteSpace: "pre-wrap", margin: 0 }}>{note.text}</pre>
+      <pre style={{ fontFamily: "'DM Sans',sans-serif", fontSize: "11px", color: hovered ? "#9a9690" : "#5a5653", lineHeight: "1.65", whiteSpace: "pre-wrap", margin: 0 }}>{note.text}</pre>
       {hovered && (
         <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: "1px solid #2a2825", display: "flex", alignItems: "center", gap: "4px" }}>
           <span style={{ fontSize: "10px", color: "#4a4744" }}>✦ nota</span>
@@ -124,7 +124,7 @@ export function LoginPage() {
           <div style={{ width: "40px", height: "40px", background: "#ffffff", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(0,0,0,0.4)" }}>
             <span style={{ fontFamily: "Georgia,serif", fontSize: "20px", color: "#0e0d0b", fontWeight: 600 }}>n</span>
           </div>
-          <span style={{ fontFamily: "Georgia,serif", fontSize: "24px", color: "#ffffff", letterSpacing: "0.06em" }}>nota</span>
+          <span style={{ fontFamily: "Georgia,serif", fontSize: "24px", color: "#ffffff", letterSpacing: "-0.02em" }}>nota</span>
         </div>
 
         {/* Headline */}
@@ -137,9 +137,9 @@ export function LoginPage() {
             letterSpacing: "-0.01em",
           }}>
             Think clearly.<br />
-            <span style={{ color: "#404040" }}>Write freely.</span>
+            <span style={{ color: "#a09890", fontStyle: "italic" }}>Write freely.</span>
           </h1>
-          <p style={{ color: "#383634", fontSize: "15px", lineHeight: "1.7" }}>
+          <p style={{ color: "#7a7570", fontSize: "15px", lineHeight: "1.7" }}>
             A minimal space for your thoughts,<br />
             ideas, and everything in between.
           </p>
@@ -179,7 +179,7 @@ export function LoginPage() {
           {loading ? "Signing in…" : "Continue with Google"}
         </button>
 
-        <p style={{ textAlign: "center", marginTop: "14px", color: "#252320", fontSize: "12px" }}>
+        <p style={{ textAlign: "center", marginTop: "14px", color: "#5a5550", fontSize: "12px" }}>
           Free forever · No credit card required
         </p>
 
@@ -187,8 +187,8 @@ export function LoginPage() {
         <div style={{ display: "flex", justifyContent: "center", gap: "6px", marginTop: "28px", flexWrap: isMobile ? "nowrap" : "wrap", overflowX: isMobile ? "auto" : "visible", paddingBottom: "4px" }}>
           {["Rich editor", "Dark mode", "AI", "Voice", "Export"].map(f => (
             <span key={f} style={{
-              fontSize: "11px", color: "#2a2825",
-              background: "#161412", border: "1px solid #222",
+              fontSize: "11px", color: "#6a6560",
+              background: "#1a1815", border: "1px solid #2e2c29",
               borderRadius: "999px", padding: "4px 12px",
               whiteSpace: "nowrap", flexShrink: 0,
             }}>{f}</span>
@@ -200,9 +200,9 @@ export function LoginPage() {
           <div style={{ display: "flex", gap: "8px", justifyContent: "center", marginTop: "40px", opacity: 0.35 }}>
             {["📋 Meeting", "💡 Ideas", "📔 Journal"].map(t => (
               <div key={t} style={{
-                background: "#141210", border: "1px solid #1e1c1a",
+                background: "#1a1815", border: "1px solid #2a2825",
                 borderRadius: "10px", padding: "6px 12px",
-                fontSize: "11px", color: "#3a3835",
+                fontSize: "11px", color: "#5a5550",
                 fontFamily: "'DM Sans',sans-serif", whiteSpace: "nowrap",
               }}>{t}</div>
             ))}
