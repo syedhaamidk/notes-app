@@ -6,29 +6,82 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { action, content } = await req.json();
+  if (!content?.trim()) return NextResponse.json({ error: "No content" }, { status: 400 });
+
+  // Try Groq first, fall back to Gemini, fall back to Anthropic
   const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) return NextResponse.json({ error: "No API key" }, { status: 500 });
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
-  try {
-    const formData = await req.formData();
-    const audio = formData.get("audio") as Blob;
-    if (!audio) return NextResponse.json({ error: "No audio" }, { status: 400 });
-
-    const groqForm = new FormData();
-    groqForm.append("file", audio, "recording.webm");
-    groqForm.append("model", "whisper-large-v3-turbo");
-    groqForm.append("response_format", "json");
-
-    const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${groqKey}` },
-      body: groqForm,
-    });
-
-    const data = await res.json();
-    if (!res.ok) return NextResponse.json({ error: data.error?.message || "Transcription failed" }, { status: 500 });
-    return NextResponse.json({ text: data.text });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+  if (!groqKey && !geminiKey && !anthropicKey) {
+    return NextResponse.json({ error: "No AI API key configured. Add GROQ_API_KEY, GEMINI_API_KEY, or ANTHROPIC_API_KEY in Vercel env vars." }, { status: 500 });
   }
+
+  const prompts: Record<string, string> = {
+    summarize: `Summarize this note in 2-3 sentences. Return only the summary:\n\n${content}`,
+    expand: `Expand this with more detail and examples. Return only the expanded text:\n\n${content}`,
+    rewrite: `Rewrite this more clearly and professionally. Return only the rewritten text:\n\n${content}`,
+    bullets: `Convert this into a clear bullet-point list. Return only the bullet points:\n\n${content}`,
+    continue: `Continue writing from where this left off. Return only the continuation:\n\n${content}`,
+    fix: `Fix grammar, spelling, and punctuation. Return only the corrected text:\n\n${content}`,
+    cleanup: `Clean up this voice transcription. Fix punctuation, remove filler words like um/uh. Return only the cleaned text:\n\n${content}`,
+  };
+
+  const prompt = prompts[action];
+  if (!prompt) return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+
+  // Try Groq
+  if (groqKey) {
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${groqKey}` },
+        body: JSON.stringify({
+          model: "llama3-8b-8192",
+          max_tokens: 1000,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const text = data.choices?.[0]?.message?.content?.trim();
+        if (text) return NextResponse.json({ result: text });
+      }
+    } catch {}
+  }
+
+  // Try Gemini
+  if (geminiKey) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        if (text) return NextResponse.json({ result: text });
+      }
+    } catch {}
+  }
+
+  // Try Anthropic
+  if (anthropicKey) {
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": anthropicKey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const text = data.content?.[0]?.text?.trim();
+        if (text) return NextResponse.json({ result: text });
+      }
+    } catch {}
+  }
+
+  return NextResponse.json({ error: "All AI providers failed. Check your API keys." }, { status: 500 });
 }
