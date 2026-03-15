@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${groqKey}` },
-        body: JSON.stringify({ model: "llama3-8b-8192", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
+        body: JSON.stringify({ model: "llama-3.1-8b-instant", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
       });
       const data = await res.json();
       if (res.ok && data.choices?.[0]?.message?.content) {
