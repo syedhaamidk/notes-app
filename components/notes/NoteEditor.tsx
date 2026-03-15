@@ -173,7 +173,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
       const data = await res.json();
       if (data.result) setAiResult(data.result);
       else toast.error(data.error || "AI failed");
-    } catch { toast.error("AI unavailable"); }
+    } catch (e: any) { toast.error(e.message || "Network error"); }
     setAiLoading(false);
   };
 
