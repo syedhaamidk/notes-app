@@ -92,11 +92,19 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
         className="relative rounded-xl cursor-pointer transition-all"
         style={{
           background: isSelected ? "var(--surface-hover)" : bg,
-          border: `1px solid ${isSelected ? "var(--text)" : "var(--border-light)"}`,
-          outline: isSelected ? "1.5px solid var(--text)" : "none",
-          outlineOffset: "-1px",
+          border: `0.5px solid ${isSelected ? "var(--border)" : "var(--border-light)"}`,
           userSelect: "none",
+          overflow: "hidden",
         }}>
+
+        {/* Teal selection bar */}
+        {isSelected && (
+          <div style={{
+            position: "absolute", left: 0, top: "16%", bottom: "16%",
+            width: "2.5px", borderRadius: "0 3px 3px 0",
+            background: "var(--accent, #5DCAA5)",
+          }} />
+        )}
 
         <div className="p-3" style={{ paddingRight: hovered ? "72px" : "12px", transition: "padding-right 0.15s ease" }}>
           <div className="flex items-start gap-2">
@@ -112,10 +120,14 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
                   style={{ fontFamily: "var(--font-display)", fontSize: "13.5px", color: "var(--text)" }}
                   dangerouslySetInnerHTML={{ __html: highlight(note.title || "Untitled", search) }} />
               </div>
-              {rawPreview && (
+              {rawPreview ? (
                 <p className="line-clamp-2"
                   style={{ color: "var(--text-secondary)", fontSize: "12px", lineHeight: "1.5" }}
                   dangerouslySetInnerHTML={{ __html: highlight(rawPreview, search) }} />
+              ) : (
+                <p style={{ color: "var(--text-muted)", fontSize: "12px", lineHeight: "1.5", fontStyle: "italic", opacity: 0.5 }}>
+                  Start writing…
+                </p>
               )}
               <div className="flex items-center gap-1.5 mt-1.5">
                 <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>
