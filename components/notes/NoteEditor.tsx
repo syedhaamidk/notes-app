@@ -249,12 +249,8 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
 
   const applyAI = () => {
     if (!editorRef.current || !aiResult) return;
-    // Strip any stray HTML tags if AI returned HTML instead of plain text
-    const cleanResult = aiResult.startsWith("<") 
-      ? aiResult  // already HTML, use as-is
-      : aiResult.replace(/
-/g, "<br>");
-    editorRef.current.innerHTML += `<hr style="margin:16px 0;border:none;border-top:1px solid var(--border)"><p><em style="color:var(--text-muted);font-size:11px">✦ AI:</em></p><p>${cleanResult}</p>`;
+    const aiHtml = aiResult.includes("<") ? aiResult : aiResult.split("\n").map(l => `<p>${l}</p>`).join("");
+    editorRef.current.innerHTML += `<hr style="margin:16px 0;border:none;border-top:1px solid var(--border)"><p><em style="color:var(--text-muted);font-size:11px">✦ AI:</em></p>${aiHtml}`;
     handleContentChange();
     setAiResult(""); setShowAI(false);
     toast.success("Added to note!");
