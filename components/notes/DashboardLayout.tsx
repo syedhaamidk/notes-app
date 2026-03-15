@@ -24,9 +24,16 @@ export function DashboardLayout({ user }: Props) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileView, setMobileView] = useState<"list" | "editor">("list");
   const searchRef = useRef<HTMLInputElement>(null);
-  const editorRef = useRef<{ insertText: (t: string) => void } | null>(null);
+  const filterRef = useRef(filter);
+  const selectedTagRef = useRef(selectedTag);
+  const searchRef2 = useRef(search);
 
-  // Swipe to go back
+  // Keep refs in sync so fetchNotes always uses latest values
+  useEffect(() => { filterRef.current = filter; }, [filter]);
+  useEffect(() => { selectedTagRef.current = selectedTag; }, [selectedTag]);
+  useEffect(() => { searchRef2.current = search; }, [search]);
+
+  // Touch swipe
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
 
@@ -38,25 +45,20 @@ export function DashboardLayout({ user }: Props) {
   const handleTouchEnd = (e: React.TouchEvent) => {
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
-    // Swipe right > 80px and mostly horizontal = go back to list
-    if (dx > 80 && dy < 60 && mobileView === "editor") {
-      setMobileView("list");
-    }
-    // Swipe right from left edge = open sidebar
-    if (dx > 60 && dy < 60 && touchStartX.current < 30 && mobileView === "list") {
-      setSidebarOpen(true);
-    }
+    if (dx > 80 && dy < 60 && mobileView === "editor") setMobileView("list");
+    if (dx > 60 && dy < 60 && touchStartX.current < 30 && mobileView === "list") setSidebarOpen(true);
   };
 
+  // Always fetches with current filter/tag/search via refs
   const fetchNotes = useCallback(async () => {
-    const params = new URLSearchParams({ filter });
-    if (selectedTag) params.set("tag", selectedTag);
-    if (search) params.set("search", search);
+    const params = new URLSearchParams({ filter: filterRef.current });
+    if (selectedTagRef.current) params.set("tag", selectedTagRef.current);
+    if (searchRef2.current) params.set("search", searchRef2.current);
     const res = await fetch(`/api/notes?${params}`);
     const data = await res.json();
     setNotes(Array.isArray(data) ? data : []);
     setLoading(false);
-  }, [filter, selectedTag, search]);
+  }, []); // no deps — uses refs
 
   const fetchTags = useCallback(async () => {
     const res = await fetch("/api/tags");
@@ -64,8 +66,9 @@ export function DashboardLayout({ user }: Props) {
     setTags(Array.isArray(data) ? data : []);
   }, []);
 
-  useEffect(() => { fetchNotes(); }, [fetchNotes]);
-  useEffect(() => { fetchTags(); }, [fetchTags]);
+  // Refetch when filter/tag/search changes
+  useEffect(() => { fetchNotes(); }, [filter, selectedTag, search]);
+  useEffect(() => { fetchTags(); }, []);
 
   useEffect(() => {
     if (window.innerWidth >= 768) {
@@ -111,9 +114,36 @@ export function DashboardLayout({ user }: Props) {
       body: JSON.stringify(data),
     });
     const updated = await res.json();
-    // Always refresh the full list so filters (pinned/archive/trash) stay in sync
-    await fetchNotes();
-    if (selectedNote?.id === id) setSelectedNote(updated);
+
+    // Update local state immediately for responsiveness
+    setNotes(prev => {
+      // If note should no longer appear in current filter, remove it
+      const shouldRemove =
+        (filterRef.current === "all" && (updated.isArchived || updated.isTrashed)) ||
+        (filterRef.current === "pinned" && (!updated.isPinned || updated.isTrashed || updated.isArchived)) ||
+        (filterRef.current === "archive" && (!updated.isArchived || updated.isTrashed)) ||
+        (filterRef.current === "trash" && !updated.isTrashed);
+
+      if (shouldRemove) return prev.filter(n => n.id !== id);
+      return prev.map(n => n.id === id ? updated : n);
+    });
+
+    if (selectedNote?.id === id) {
+      // If note removed from current view, deselect
+      const shouldDeselect =
+        (filterRef.current === "all" && (updated.isArchived || updated.isTrashed)) ||
+        (filterRef.current === "pinned" && (!updated.isPinned || updated.isTrashed || updated.isArchived)) ||
+        (filterRef.current === "archive" && (!updated.isArchived || updated.isTrashed)) ||
+        (filterRef.current === "trash" && !updated.isTrashed);
+
+      if (shouldDeselect) {
+        setSelectedNote(null);
+        setMobileView("list");
+      } else {
+        setSelectedNote(updated);
+      }
+    }
+
     return updated;
   };
 
@@ -125,14 +155,16 @@ export function DashboardLayout({ user }: Props) {
   };
 
   const trashNote = async (id: string) => {
-    await fetch(`/api/notes/${id}`, {
+    const res = await fetch(`/api/notes/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isTrashed: true, isPinned: false }),
     });
-    await fetchNotes();
+    const updated = await res.json();
+    setNotes(prev => prev.filter(n => n.id !== id));
     if (selectedNote?.id === id) { setSelectedNote(null); setMobileView("list"); }
     toast.success("Moved to trash");
+    return updated;
   };
 
   const duplicateNote = async () => {
@@ -142,6 +174,13 @@ export function DashboardLayout({ user }: Props) {
     setNotes(prev => [copy, ...prev]);
     setSelectedNote(copy);
     toast.success("Note duplicated");
+  };
+
+  const handleFilterChange = (f: string) => {
+    setFilter(f);
+    setSelectedTag(null);
+    setSelectedNote(null);
+    setMobileView("list");
   };
 
   return (
@@ -160,7 +199,7 @@ export function DashboardLayout({ user }: Props) {
         <Sidebar
           user={user} tags={tags} filter={filter} selectedTag={selectedTag}
           noteCount={notes.length}
-          onFilterChange={(f) => { setFilter(f); setSelectedTag(null); setSelectedNote(null); }}
+          onFilterChange={handleFilterChange}
           onTagSelect={(t) => { setSelectedTag(t); setFilter("all"); setSelectedNote(null); }}
           onTagsChange={fetchTags}
           open={false} onClose={() => {}}
@@ -172,7 +211,7 @@ export function DashboardLayout({ user }: Props) {
       <Sidebar
         user={user} tags={tags} filter={filter} selectedTag={selectedTag}
         noteCount={notes.length}
-        onFilterChange={(f) => { setFilter(f); setSelectedTag(null); setSelectedNote(null); setSidebarOpen(false); }}
+        onFilterChange={(f) => { handleFilterChange(f); setSidebarOpen(false); }}
         onTagSelect={(t) => { setSelectedTag(t); setFilter("all"); setSelectedNote(null); setSidebarOpen(false); }}
         onTagsChange={fetchTags}
         open={sidebarOpen} onClose={() => setSidebarOpen(false)}
@@ -181,8 +220,9 @@ export function DashboardLayout({ user }: Props) {
       />
 
       <div className="flex flex-1 overflow-hidden min-w-0">
-        {/* Notes list */}
-        <div className={`flex flex-col border-r flex-shrink-0 ${mobileView === "editor" ? "hidden md:flex" : "flex"}`}
+        {/* Notes list panel */}
+        <div
+          className={`flex flex-col border-r flex-shrink-0 ${mobileView === "editor" ? "hidden md:flex" : "flex"}`}
           style={{ width: "100%", maxWidth: "320px", borderColor: "var(--border)", background: "var(--surface)" }}>
 
           <div className="flex items-center gap-2 px-3 py-2.5 border-b" style={{ borderColor: "var(--border)" }}>
@@ -195,7 +235,8 @@ export function DashboardLayout({ user }: Props) {
             <div className="flex-1 relative min-w-0">
               <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
               <input
-                ref={searchRef} value={search}
+                ref={searchRef}
+                value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search…"
                 className="w-full pl-7 pr-3 py-2 rounded-lg text-sm"
@@ -210,21 +251,26 @@ export function DashboardLayout({ user }: Props) {
           </div>
 
           <NotesList
-            notes={notes} loading={loading} selectedNote={selectedNote} filter={filter}
+            notes={notes}
+            loading={loading}
+            selectedNote={selectedNote}
+            filter={filter}
             search={search}
             onSelect={(note) => { setSelectedNote(note); setMobileView("editor"); }}
             onPin={(id) => updateNote(id, { isPinned: !notes.find(n => n.id === id)?.isPinned })}
-            onTrash={trashNote} onDelete={deleteNote}
+            onTrash={trashNote}
+            onDelete={deleteNote}
             onRestore={(id) => updateNote(id, { isTrashed: false })}
           />
         </div>
 
-        {/* Editor */}
+        {/* Editor panel */}
         <div className={`flex-1 overflow-hidden min-w-0 ${mobileView === "list" ? "hidden md:flex" : "flex"} flex-col`}>
           {selectedNote ? (
             <NoteEditor
               key={selectedNote.id}
-              note={selectedNote} tags={tags}
+              note={selectedNote}
+              tags={tags}
               onUpdate={updateNote}
               onTrash={() => trashNote(selectedNote.id)}
               onDelete={() => deleteNote(selectedNote.id)}
@@ -238,9 +284,12 @@ export function DashboardLayout({ user }: Props) {
                 style={{ background: "var(--surface-hover)" }}>
                 <span style={{ fontFamily: "var(--font-display)", fontSize: "20px", color: "var(--text-muted)" }}>n</span>
               </div>
-              <p style={{ fontFamily: "var(--font-display)", fontSize: "15px", color: "var(--text-secondary)" }}>No note selected</p>
-              <p className="hidden md:block" style={{ fontSize: "12px", color: "var(--text-muted)" }}>⌘N to create · ⌘B to toggle sidebar</p>
-              <p className="md:hidden" style={{ fontSize: "12px", color: "var(--text-muted)" }}>Tap + New to start</p>
+              <p style={{ fontFamily: "var(--font-display)", fontSize: "15px", color: "var(--text-secondary)" }}>
+                No note selected
+              </p>
+              <p className="hidden md:block" style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                ⌘N to create · ⌘B to toggle sidebar
+              </p>
               <button onClick={createNote}
                 className="mt-1 flex items-center gap-2 px-5 py-3 rounded-xl text-sm transition-all hover:opacity-80"
                 style={{ background: "var(--text)", color: "var(--bg)", fontFamily: "var(--font-body)" }}>
@@ -258,12 +307,8 @@ export function DashboardLayout({ user }: Props) {
         hasNote={!!selectedNote}
         onMenuOpen={() => setSidebarOpen(true)}
         onVoiceInsert={(text) => {
-          // Find the editor's contenteditable and insert text
           const editor = document.querySelector('.rich-editor') as HTMLElement;
-          if (editor) {
-            editor.focus();
-            document.execCommand('insertText', false, text);
-          }
+          if (editor) { editor.focus(); document.execCommand('insertHTML', false, `<p>${text}</p>`); }
         }}
       />
     </div>
