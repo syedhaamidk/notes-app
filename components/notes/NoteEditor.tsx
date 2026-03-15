@@ -111,7 +111,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     const text = editorRef.current?.innerText || "";
     const wc = text.trim() ? text.trim().split(/\s+/).length : 0;
     setWordCount(wc);
-    debounceSave({ title: titleRef.current, content, wordCount: wc });
+    debounceSave({ title: titleRef.current, content });
   }, [debounceSave]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
