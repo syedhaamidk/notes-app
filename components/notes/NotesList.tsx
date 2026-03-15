@@ -120,7 +120,7 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
                   <Pin size={9} style={{ color: textMuted, flexShrink: 0 }} />
                 )}
                 <p className="font-medium truncate"
-                  style={{ fontFamily: "var(--font-display)", fontSize: "13.5px", color: "var(--text)" }}
+                  style={{ fontFamily: "var(--font-display)", fontSize: "13.5px", color: textColor }}
                   dangerouslySetInnerHTML={{ __html: highlight(note.title || "Untitled", search) }} />
               </div>
               {rawPreview ? (
@@ -128,7 +128,7 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
                   style={{ color: textSecondary, fontSize: "12px", lineHeight: "1.5" }}
                   dangerouslySetInnerHTML={{ __html: highlight(rawPreview, search) }} />
               ) : (
-                <p style={{ color: "var(--text-muted)", fontSize: "12px", lineHeight: "1.5", fontStyle: "italic", opacity: 0.5 }}>
+                <p style={{ color: textMuted, fontSize: "12px", lineHeight: "1.5", fontStyle: "italic", opacity: 0.5 }}>
                   Start writing…
                 </p>
               )}

@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
   if (!groqKey && !geminiKey && !anthropicKey) {
-    return NextResponse.json({ error: "No AI API key configured. Add GROQ_API_KEY, GEMINI_API_KEY, or ANTHROPIC_API_KEY in Vercel env vars." }, { status: 500 });
+    return NextResponse.json({ error: "No AI API key configured." }, { status: 500 });
   }
 
   const prompts: Record<string, string> = {
@@ -25,12 +25,19 @@ export async function POST(req: NextRequest) {
     continue: `Continue writing from where this left off. Return only the continuation:\n\n${content}`,
     fix: `Fix grammar, spelling, and punctuation. Return only the corrected text:\n\n${content}`,
     cleanup: `Clean up this voice transcription. Fix punctuation, remove filler words like um/uh. Return only the cleaned text:\n\n${content}`,
-    template: `You are a note-taking assistant. Generate a well-structured note based on this description: "${content}".
+    template: `You are a note-taking assistant. Generate a well-structured note about: "${content}"
 
-Return clean HTML suitable for a rich text editor. Use these HTML tags only: <h1>, <h2>, <h3>, <p>, <ul>, <li>, <ol>, <strong>, <em>, <hr>.
-Include realistic placeholder sections with brief instructional text in each section.
-Do NOT include <html>, <body>, <head>, <style> tags. Return only the inner HTML content.
-Make it practical and immediately useful.`,
+CRITICAL RULES - you MUST follow these exactly:
+- Output ONLY raw HTML. No markdown. No backticks. No code blocks.
+- Use ONLY these HTML tags: <h1> <h2> <h3> <p> <ul> <li> <ol> <strong> <em> <hr>
+- Do NOT use #, ##, ###, *, **, or any markdown syntax
+- Do NOT include \`\`\`html or \`\`\` or any code fences
+- Do NOT include <html> <body> <head> <style> <script> tags
+- Start directly with an HTML tag like <h1> or <p>
+- Make it practical with 3-5 sections and placeholder content
+
+Example of correct output format:
+<h1>Meeting Notes</h1><h2>Attendees</h2><p>List attendees here.</p><h2>Agenda</h2><ul><li>Item one</li><li>Item two</li></ul>`,
   };
 
   const prompt = prompts[action];
@@ -46,14 +53,21 @@ Make it practical and immediately useful.`,
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${groqKey}` },
         body: JSON.stringify({
           model: "llama-3.1-8b-instant",
-          max_tokens: 1000,
-          messages: [{ role: "user", content: prompt }],
+          max_tokens: 1500,
+          messages: [
+            { role: "system", content: "You output only raw HTML. Never use markdown. Never use code fences. Start your response directly with an HTML tag." },
+            { role: "user", content: prompt }
+          ],
         }),
       });
       const data = await res.json();
       if (res.ok) {
-        const text = data.choices?.[0]?.message?.content?.trim();
-        if (text) return NextResponse.json({ result: text });
+        let text = data.choices?.[0]?.message?.content?.trim();
+        if (text) {
+          // Strip any markdown code fences if model ignored instructions
+          text = text.replace(/^```html\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+          return NextResponse.json({ result: text });
+        }
         errors.push(`Groq: empty response`);
       } else {
         errors.push(`Groq ${res.status}: ${JSON.stringify(data)}`);
@@ -73,8 +87,11 @@ Make it practical and immediately useful.`,
       });
       const data = await res.json();
       if (res.ok) {
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        if (text) return NextResponse.json({ result: text });
+        let text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        if (text) {
+          text = text.replace(/^```html\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+          return NextResponse.json({ result: text });
+        }
         errors.push(`Gemini: empty response`);
       } else {
         errors.push(`Gemini ${res.status}: ${JSON.stringify(data)}`);
@@ -90,12 +107,15 @@ Make it practical and immediately useful.`,
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": anthropicKey, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
+        body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 1500, messages: [{ role: "user", content: prompt }] }),
       });
       const data = await res.json();
       if (res.ok) {
-        const text = data.content?.[0]?.text?.trim();
-        if (text) return NextResponse.json({ result: text });
+        let text = data.content?.[0]?.text?.trim();
+        if (text) {
+          text = text.replace(/^```html\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+          return NextResponse.json({ result: text });
+        }
         errors.push(`Anthropic: empty response`);
       } else {
         errors.push(`Anthropic ${res.status}: ${JSON.stringify(data)}`);
