@@ -9,7 +9,6 @@ export async function POST(req: NextRequest) {
   const { action, content } = await req.json();
   if (!content?.trim()) return NextResponse.json({ error: "No content" }, { status: 400 });
 
-  // Try Groq first, fall back to Gemini, fall back to Anthropic
   const groqKey = process.env.GROQ_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
@@ -31,6 +30,8 @@ export async function POST(req: NextRequest) {
   const prompt = prompts[action];
   if (!prompt) return NextResponse.json({ error: "Invalid action" }, { status: 400 });
 
+  const errors: string[] = [];
+
   // Try Groq
   if (groqKey) {
     try {
@@ -47,8 +48,13 @@ export async function POST(req: NextRequest) {
       if (res.ok) {
         const text = data.choices?.[0]?.message?.content?.trim();
         if (text) return NextResponse.json({ result: text });
+        errors.push(`Groq: empty response`);
+      } else {
+        errors.push(`Groq ${res.status}: ${JSON.stringify(data)}`);
       }
-    } catch {}
+    } catch (e) {
+      errors.push(`Groq exception: ${e}`);
+    }
   }
 
   // Try Gemini
@@ -63,8 +69,13 @@ export async function POST(req: NextRequest) {
       if (res.ok) {
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
         if (text) return NextResponse.json({ result: text });
+        errors.push(`Gemini: empty response`);
+      } else {
+        errors.push(`Gemini ${res.status}: ${JSON.stringify(data)}`);
       }
-    } catch {}
+    } catch (e) {
+      errors.push(`Gemini exception: ${e}`);
+    }
   }
 
   // Try Anthropic
@@ -79,9 +90,15 @@ export async function POST(req: NextRequest) {
       if (res.ok) {
         const text = data.content?.[0]?.text?.trim();
         if (text) return NextResponse.json({ result: text });
+        errors.push(`Anthropic: empty response`);
+      } else {
+        errors.push(`Anthropic ${res.status}: ${JSON.stringify(data)}`);
       }
-    } catch {}
+    } catch (e) {
+      errors.push(`Anthropic exception: ${e}`);
+    }
   }
 
-  return NextResponse.json({ error: "All AI providers failed. Check your API keys." }, { status: 500 });
+  console.error("AI route failed. Errors:", errors);
+  return NextResponse.json({ error: "All AI providers failed.", details: errors }, { status: 500 });
 }
