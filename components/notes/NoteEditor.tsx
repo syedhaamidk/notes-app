@@ -352,9 +352,13 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   const closeAll = () => setOpenMenu(null);
 
   const editorBg = localNote.color ? (NOTE_COLOR_MAP[localNote.color] || "var(--surface)") : "var(--surface)";
+  const isColored = !!localNote.color;
+  const colorText = isColored ? "#1a1a1a" : "var(--text)";
+  const colorMuted = isColored ? "#888888" : "var(--text-muted)";
+  const colorSecondary = isColored ? "#555555" : "var(--text-secondary)";
 
   return (
-    <div className="flex flex-col h-full" style={{ background: editorBg }}>
+    <div className="flex flex-col h-full" data-note-colored={isColored ? "true" : undefined} style={{ background: editorBg }}>
 
       {/* Top toolbar */}
       <div className="flex items-center gap-0.5 px-2 py-2 border-b flex-shrink-0"
@@ -370,7 +374,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
             background: saving ? "var(--text-muted)" : "var(--accent, #5DCAA5)",
             transition: "background 0.3s ease",
           }} />
-          <span style={{ fontSize: "11px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: "11px", color: colorMuted, whiteSpace: "nowrap" }}>
             {saving ? "Saving…" : `Saved ${format(new Date(localNote.updatedAt), "h:mm a")}`}
           </span>
         </div>
@@ -602,13 +606,13 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
               placeholder="Untitled"
               rows={1}
               className="w-full resize-none bg-transparent border-none outline-none"
-              style={{ fontFamily:"var(--font-display)", fontSize:"26px", fontWeight:500, color:"var(--text)", lineHeight:"1.25", marginBottom:"6px" }}
+              style={{ fontFamily:"var(--font-display)", fontSize:"26px", fontWeight:500, color:colorText, lineHeight:"1.25", marginBottom:"6px" }}
               onInput={e => { const el=e.currentTarget; el.style.height="auto"; el.style.height=el.scrollHeight+"px"; }}
             />
 
             {/* Date + meta */}
             <div className="flex items-center gap-3 mb-5">
-              <p style={{ fontSize:"11px", color:"var(--text-muted)" }}>
+              <p style={{ fontSize:"11px", color:colorMuted }}>
                 {format(new Date(localNote.updatedAt), "EEEE, MMMM d, yyyy · h:mm a")}
               </p>
               {localNote.isPinned && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📌 Pinned</span>}
@@ -656,7 +660,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
         {/* Footer stats */}
         <div className="hidden md:flex items-center px-10 py-1.5 border-t flex-shrink-0"
           style={{ borderColor: "var(--border)", background: editorBg }}>
-          <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>
+          <span style={{ fontSize: "10px", color: colorMuted }}>
             {wordCount} {wordCount === 1 ? "word" : "words"}
             {editorRef.current?.innerText?.trim()
               ? ` · ${editorRef.current.innerText.trim().length} characters` : ""}
