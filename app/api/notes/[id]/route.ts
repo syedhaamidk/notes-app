@@ -73,7 +73,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     return NextResponse.json(note);
   } catch (e: any) {
-    console.error("PATCH note error:", e.message);
+    console.error("PATCH note error:", JSON.stringify(e, null, 2));
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
