@@ -126,7 +126,7 @@ export function DashboardLayout({ user }: Props) {
     });
     if (!res.ok) throw new Error("Update failed");
     const updated = await res.json();
-    if (!updated?.id) return;
+    if (!updated?.id) return note as any;
 
     // Update local state immediately for responsiveness
     setNotes(prev => {

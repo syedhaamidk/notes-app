@@ -63,15 +63,6 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
 
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimeout = useRef<NodeJS.Timeout>();
-  const titleRef = useRef(title);
-  useEffect(() => { titleRef.current = title; }, [title]);
-
-  // Cleanup debounce timer on unmount
-  useEffect(() => {
-    return () => {
-      if (saveTimeout.current) clearTimeout(saveTimeout.current);
-    };
-  }, []);
 
   // Sync local note when prop changes (e.g. after save)
   useEffect(() => {
@@ -91,10 +82,16 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
 
   const save = useCallback(async (data: Record<string,unknown>) => {
     setSaving(true);
-    const updated = await onUpdate(note.id, data);
-    setLocalNote(updated);
-    setSaving(false);
-    return updated;
+    try {
+      const updated = await onUpdate(note.id, data);
+      if (updated) setLocalNote(updated);
+      return updated;
+    } catch (err) {
+      console.error("Save failed:", err);
+      toast.error("Failed to save — check your connection");
+    } finally {
+      setSaving(false);
+    }
   }, [note.id, onUpdate]);
 
   const debounceSave = useCallback((data: Record<string,unknown>) => {
@@ -107,8 +104,8 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     const text = editorRef.current?.innerText || "";
     const wc = text.trim() ? text.trim().split(/\s+/).length : 0;
     setWordCount(wc);
-    debounceSave({ title: titleRef.current, content, wordCount: wc });
-  }, [debounceSave]);
+    debounceSave({ title, content, wordCount: wc });
+  }, [title, debounceSave]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setTitle(e.target.value);
@@ -290,7 +287,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
 
         <div className="flex-1 flex items-center gap-2 min-w-0 overflow-hidden">
           <span style={{ fontSize:"11px", color:"var(--text-muted)", whiteSpace:"nowrap" }}>
-            {saving ? "Saving…" : `Saved ${format(new Date(note.updatedAt), "h:mm a")}`}
+            {saving ? "Saving…" : `Saved ${format(new Date(localNote.updatedAt), "h:mm a")}`}
           </span>
           {wordCount > 0 && (
             <span className="hidden md:inline" style={{ fontSize:"11px", color:"var(--text-muted)" }}>
@@ -514,7 +511,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
             {/* Date + meta */}
             <div className="flex items-center gap-3 mb-5">
               <p style={{ fontSize:"11px", color:"var(--text-muted)" }}>
-                {format(new Date(note.updatedAt), "EEEE, MMMM d, yyyy · h:mm a")}
+                {format(new Date(localNote.updatedAt), "EEEE, MMMM d, yyyy · h:mm a")}
               </p>
               {localNote.isPinned && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📌 Pinned</span>}
               {localNote.isArchived && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📦 Archived</span>}
