@@ -63,6 +63,12 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
 
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimeout = useRef<NodeJS.Timeout>();
+  const titleRef = useRef(title);
+  useEffect(() => { titleRef.current = title; }, [title]);
+
+  useEffect(() => {
+    return () => { if (saveTimeout.current) clearTimeout(saveTimeout.current); };
+  }, []);
 
   // Sync local note when prop changes (e.g. after save)
   useEffect(() => {
@@ -105,8 +111,8 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     const text = editorRef.current?.innerText || "";
     const wc = text.trim() ? text.trim().split(/\s+/).length : 0;
     setWordCount(wc);
-    debounceSave({ title, content, wordCount: wc });
-  }, [title, debounceSave]);
+    debounceSave({ title: titleRef.current, content, wordCount: wc });
+  }, [debounceSave]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setTitle(e.target.value);
@@ -286,16 +292,34 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
           <ArrowLeft size={15} style={{ color:"var(--text-secondary)" }} />
         </button>
 
-        <div className="flex-1 flex items-center gap-2 min-w-0 overflow-hidden">
-          <span style={{ fontSize:"11px", color:"var(--text-muted)", whiteSpace:"nowrap" }}>
-            {saving ? "Saving…" : `Saved ${format(new Date(note.updatedAt), "h:mm a")}`}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div style={{
+            width: "6px", height: "6px", borderRadius: "50%", flexShrink: 0,
+            background: saving ? "var(--text-muted)" : "var(--accent, #5DCAA5)",
+            transition: "background 0.3s ease",
+          }} />
+          <span style={{ fontSize: "11px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+            {saving ? "Saving…" : `Saved ${format(new Date(localNote.updatedAt), "h:mm a")}`}
           </span>
-          {wordCount > 0 && (
-            <span className="hidden md:inline" style={{ fontSize:"11px", color:"var(--text-muted)" }}>
-              · {wordCount}w
-            </span>
-          )}
         </div>
+        <div className="flex-1" />
+
+        {/* AI pill */}
+        <button
+          onClick={() => { setShowAI(!showAI); closeAll(); }}
+          style={{
+            display: "flex", alignItems: "center", gap: "5px",
+            padding: "5px 11px", borderRadius: "20px",
+            background: showAI ? "var(--accent, #5DCAA5)" : "rgba(93,202,165,0.12)",
+            color: showAI ? "#fff" : "var(--accent, #5DCAA5)",
+            border: "none", cursor: "pointer",
+            fontSize: "11px", fontWeight: 500, fontFamily: "var(--font-body)",
+            flexShrink: 0,
+          }}
+          title="AI assistant">
+          <Sparkles size={12} />
+          AI
+        </button>
 
         {/* PIN */}
         <TBtn onClick={handlePin} active={localNote.isPinned} title={localNote.isPinned ? "Unpin" : "Pin note"}>
@@ -406,11 +430,6 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
         {/* VOICE */}
         <TBtn onClick={() => setShowVoice(true)} title="Voice to text"><Mic size={14} /></TBtn>
 
-        {/* AI */}
-        <TBtn onClick={() => { setShowAI(!showAI); closeAll(); }} active={showAI} title="AI assistant">
-          <Sparkles size={14} />
-        </TBtn>
-
         {/* EXPORT */}
         <TBtn onClick={() => { setShowExport(true); closeAll(); }} title="Export note">
           <Download size={14} />
@@ -443,7 +462,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
         </div>
       </div>
 
-      {/* Formatting toolbar */}
+      {/* Row 1 — Text formatting */}
       <div className="format-toolbar flex-shrink-0" style={{ borderColor:"var(--border)" }}>
         <FBtn cmd="bold"          icon={<Bold size={12} />}          title="Bold (⌘B)" />
         <FBtn cmd="italic"        icon={<Italic size={12} />}        title="Italic (⌘I)" />
@@ -459,14 +478,20 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
         <button className="format-btn" onClick={() => fmt("formatBlock","blockquote")} title="Quote"><Quote size={12} /></button>
         <div className="format-divider" />
         <button className="format-btn" onClick={() => { const s=window.getSelection()?.toString(); if(s) fmt("insertHTML",`<code style="background:var(--surface-hover);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:0.875em">${s}</code>`); }} title="Inline code"><Code size={12} /></button>
+        <button className="format-btn" onClick={() => fmt("removeFormat")} title="Remove formatting"><RotateCcw size={12} /></button>
+      </div>
+
+      {/* Row 2 — Insert actions */}
+      <div className="format-toolbar flex-shrink-0" style={{ borderColor:"var(--border)", background:"var(--surface)" }}>
+        <span style={{ fontSize:"10px", color:"var(--text-muted)", padding:"0 6px", opacity:0.6, userSelect:"none" }}>Insert</span>
+        <div className="format-divider" />
         <button className="format-btn" onClick={insertLink}        title="Link"><Link size={12} /></button>
         <button className="format-btn" onClick={handleImageUpload} title="Image"><ImageIcon size={12} /></button>
         <button className="format-btn" onClick={insertTable}       title="Table"><Table size={12} /></button>
         <button className="format-btn" onClick={() => fmt("insertHorizontalRule")} title="Divider"><Minus size={12} /></button>
-        <button className="format-btn" onClick={() => fmt("removeFormat")} title="Remove formatting"><RotateCcw size={12} /></button>
         <button className="format-btn" onClick={() => {
           if (confirm("Clear all content?")) { if(editorRef.current) editorRef.current.innerHTML=""; handleContentChange(); }
-        }} style={{ marginLeft:"auto", fontSize:"10px", color:"var(--text-muted)" }}>Clear</button>
+        }} style={{ marginLeft:"auto", fontSize:"10px", color:"var(--text-muted)", padding:"0 8px" }}>Clear</button>
       </div>
 
       {/* Main content area */}
@@ -512,7 +537,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
             {/* Date + meta */}
             <div className="flex items-center gap-3 mb-5">
               <p style={{ fontSize:"11px", color:"var(--text-muted)" }}>
-                {format(new Date(note.updatedAt), "EEEE, MMMM d, yyyy · h:mm a")}
+                {format(new Date(localNote.updatedAt), "EEEE, MMMM d, yyyy · h:mm a")}
               </p>
               {localNote.isPinned && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📌 Pinned</span>}
               {localNote.isArchived && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📦 Archived</span>}
@@ -523,6 +548,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
               ref={editorRef}
               contentEditable
               suppressContentEditableWarning
+              spellCheck={false}
               className="rich-editor"
               data-placeholder="Start writing…"
               onInput={handleContentChange}
@@ -534,7 +560,37 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
                 document.execCommand("insertHTML", false, html || text.replace(/\n/g,"<br>"));
               }}
             />
+            {wordCount === 0 && (
+              <p style={{
+                fontFamily: "var(--font-display)", fontSize: "14px",
+                color: "var(--text-muted)", marginTop: "12px",
+                pointerEvents: "none", userSelect: "none", opacity: 0.45,
+              }}>
+                Press{" "}
+                <kbd style={{
+                  background: "var(--surface-hover)",
+                  border: "1px solid var(--border-light)",
+                  borderRadius: "4px", padding: "1px 6px",
+                  fontSize: "12px", fontFamily: "var(--font-mono)",
+                  color: "var(--text-muted)",
+                }}>/</kbd>
+                {" "}for commands, or just start writing…
+              </p>
+            )}
           </div>
+        </div>
+
+        {/* Footer stats */}
+        <div className="hidden md:flex items-center px-10 py-1.5 border-t flex-shrink-0"
+          style={{ borderColor: "var(--border)", background: editorBg }}>
+          <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>
+            {wordCount} {wordCount === 1 ? "word" : "words"}
+            {editorRef.current?.innerText?.trim()
+              ? ` · ${editorRef.current.innerText.trim().length} characters` : ""}
+          </span>
+          <span style={{ fontSize: "10px", color: "var(--text-muted)", marginLeft: "auto", opacity: 0.5 }}>
+            ⌘N new · ⌘B sidebar · / commands
+          </span>
         </div>
 
         {/* AI Panel - desktop */}

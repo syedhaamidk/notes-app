@@ -97,12 +97,11 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
           overflow: "hidden",
         }}>
 
-        {/* Teal selection bar */}
         {isSelected && (
           <div style={{
             position: "absolute", left: 0, top: "16%", bottom: "16%",
             width: "2.5px", borderRadius: "0 3px 3px 0",
-            background: "var(--accent, #5DCAA5)",
+            background: "var(--accent, #5DCAA5)", zIndex: 1,
           }} />
         )}
 
@@ -131,7 +130,7 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
               )}
               <div className="flex items-center gap-1.5 mt-1.5">
                 <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>
-                  {format(new Date(note.updatedAt), "MMM d")}
+                  {format(new Date(note.updatedAt), "MMM d · h:mm a")}
                 </span>
                 {(note.tags || []).slice(0, 2).map(nt => (
                   <span key={nt.tagId} className="px-1.5 py-0.5 rounded-full"

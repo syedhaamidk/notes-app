@@ -92,9 +92,9 @@ export function Sidebar({ user, tags, filter, selectedTag, noteCount, onFilterCh
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
               style={{ background: "var(--text)" }}>
-              <span style={{ fontFamily: "var(--font-display)", color: "var(--bg)", fontSize: "12px", lineHeight: 1 }}>n</span>
+              <span style={{ fontFamily: "Georgia, serif", color: "var(--bg)", fontSize: "13px", lineHeight: 1, fontStyle: "italic", fontWeight: 500 }}>n</span>
             </div>
-            <span style={{ fontFamily: "var(--font-display)", fontSize: "16px", letterSpacing: "0.02em", color: "var(--text)" }}>nota</span>
+            <span style={{ fontFamily: "var(--font-display)", fontSize: "16px", letterSpacing: "-0.02em", color: "var(--text)" }}>nota</span>
           </div>
           <div className="flex items-center gap-1">
             <button onClick={toggleDark}
