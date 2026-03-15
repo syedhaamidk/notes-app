@@ -3,28 +3,56 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const { id } = await params;
-  const original = await prisma.note.findFirst({
+  const note = await prisma.note.findFirst({
     where: { id, userId: session.user.id },
-    include: { tags: true },
-  });
-  if (!original) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  const copy = await prisma.note.create({
-    data: {
-      title: original.title + " (copy)",
-      content: original.content,
-      emoji: original.emoji,
-      color: original.color,
-      userId: session.user.id,
-      tags: { create: original.tags.map(t => ({ tagId: t.tagId })) },
-    },
     include: { tags: { include: { tag: true } } },
   });
+  if (!note) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(note);
+}
 
-  return NextResponse.json(copy);
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { id } = await params;
+  try {
+    const body = await req.json();
+    const { tagIds, saveVersion, wordCount, ...data } = body;
+    if (data.content !== undefined) {
+      data.wordCount = data.content.replace(/<[^>]*>/g, "").trim()
+        ? data.content.replace(/<[^>]*>/g, "").trim().split(/\s+/).length : 0;
+    } else if (wordCount !== undefined) {
+      data.wordCount = wordCount;
+    }
+    const note = await prisma.note.update({
+      where: { id, userId: session.user.id },
+      data: {
+        ...data,
+        ...(tagIds !== undefined && {
+          tags: { deleteMany: {}, create: tagIds.map((tagId: string) => ({ tagId })) },
+        }),
+      },
+      include: { tags: { include: { tag: true } } },
+    });
+    return NextResponse.json(note);
+  } catch (e: any) {
+    console.error("PATCH note error:", e);
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { id } = await params;
+  try {
+    await prisma.note.delete({ where: { id, userId: session.user.id } });
+    return NextResponse.json({ success: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }
