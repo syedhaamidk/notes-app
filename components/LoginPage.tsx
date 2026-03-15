@@ -50,12 +50,11 @@ function FloatingCard({ note, index }: { note: typeof FLOATING_NOTES[0]; index: 
         boxShadow: hovered ? "0 20px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)" : "none",
         zIndex: hovered ? 20 : 1,
       }}>
-      <div style={{ position: "absolute", top: "10px", right: "10px", width: "6px", height: "6px", borderRadius: "50%", background: hovered ? "#4a4744" : "#2a2825", transition: "background 0.2s" }} />
-      <pre style={{ fontFamily: "'DM Sans',sans-serif", fontSize: "11px", color: hovered ? "#9a9690" : "#3a3835", lineHeight: "1.65", whiteSpace: "pre-wrap", margin: 0, transition: "color 0.2s" }}>{note.text}</pre>
+      <div style={{ position: "absolute", top: "10px", right: "10px", width: "6px", height: "6px", borderRadius: "50%", background: hovered ? "#4a4744" : "#2a2825" }} />
+      <pre style={{ fontFamily: "'DM Sans',sans-serif", fontSize: "11px", color: hovered ? "#9a9690" : "#3a3835", lineHeight: "1.65", whiteSpace: "pre-wrap", margin: 0 }}>{note.text}</pre>
       {hovered && (
         <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: "1px solid #2a2825", display: "flex", alignItems: "center", gap: "4px" }}>
-          <span style={{ fontSize: "10px", color: "#4a4744" }}>✦</span>
-          <span style={{ fontSize: "10px", color: "#4a4744", fontFamily: "'DM Sans',sans-serif" }}>nota</span>
+          <span style={{ fontSize: "10px", color: "#4a4744" }}>✦ nota</span>
         </div>
       )}
     </div>
@@ -102,62 +101,75 @@ export function LoginPage() {
         <FloatingCard key={note.id} note={note} index={i} />
       ))}
 
-      {/* Mobile: subtle background pattern */}
+      {/* Mobile background — subtle radial only, no grid */}
       {mounted && isMobile && (
-        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
-          {/* Soft radial glows */}
-          <div style={{ position: "absolute", top: "10%", left: "20%", width: "300px", height: "300px", borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 70%)" }} />
-          <div style={{ position: "absolute", bottom: "20%", right: "10%", width: "200px", height: "200px", borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.02) 0%, transparent 70%)" }} />
-          {/* Minimal grid lines */}
-          <svg width="100%" height="100%" style={{ opacity: 0.04 }}>
-            {[...Array(8)].map((_, i) => (
-              <line key={i} x1={`${i * 14}%`} y1="0" x2={`${i * 14}%`} y2="100%" stroke="white" strokeWidth="1" />
-            ))}
-            {[...Array(12)].map((_, i) => (
-              <line key={i} x1="0" y1={`${i * 9}%`} x2="100%" y2={`${i * 9}%`} stroke="white" strokeWidth="1" />
-            ))}
-          </svg>
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+          <div style={{ position: "absolute", top: "15%", left: "50%", transform: "translateX(-50%)", width: "400px", height: "400px", borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.04) 0%, transparent 70%)" }} />
+          <div style={{ position: "absolute", bottom: "10%", left: "20%", width: "200px", height: "200px", borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.02) 0%, transparent 70%)" }} />
         </div>
       )}
 
       {/* Center content */}
       <div style={{
         position: "relative", zIndex: 10,
-        width: "100%", maxWidth: "380px", padding: "0 28px",
+        width: "100%", maxWidth: "400px",
+        padding: isMobile ? "0 24px" : "0 28px",
         opacity: mounted ? 1 : 0,
         transform: mounted ? "translateY(0)" : "translateY(20px)",
         transition: "opacity 0.7s ease 0.2s, transform 0.7s ease 0.2s",
       }}>
+
         {/* Logo */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", marginBottom: isMobile ? "40px" : "44px" }}>
-          <div style={{ width: "36px", height: "36px", background: "#ffffff", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}>
-            <span style={{ fontFamily: "Georgia,serif", fontSize: "18px", color: "#0e0d0b", fontWeight: 600 }}>n</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", marginBottom: isMobile ? "36px" : "44px" }}>
+          <div style={{ width: "40px", height: "40px", background: "#ffffff", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(0,0,0,0.4)" }}>
+            <span style={{ fontFamily: "Georgia,serif", fontSize: "20px", color: "#0e0d0b", fontWeight: 600 }}>n</span>
           </div>
-          <span style={{ fontFamily: "Georgia,serif", fontSize: "22px", color: "#ffffff", letterSpacing: "0.06em" }}>nota</span>
+          <span style={{ fontFamily: "Georgia,serif", fontSize: "24px", color: "#ffffff", letterSpacing: "0.06em" }}>nota</span>
         </div>
 
         {/* Headline */}
-        <div style={{ textAlign: "center", marginBottom: "32px" }}>
-          <h1 style={{ fontFamily: "Georgia,serif", fontSize: isMobile ? "34px" : "40px", fontWeight: 400, color: "#ffffff", lineHeight: "1.15", marginBottom: "14px", letterSpacing: "-0.01em" }}>
+        <div style={{ textAlign: "center", marginBottom: isMobile ? "28px" : "36px" }}>
+          <h1 style={{
+            fontFamily: "Georgia,serif",
+            fontSize: isMobile ? "38px" : "42px",
+            fontWeight: 400, color: "#ffffff",
+            lineHeight: "1.15", marginBottom: "14px",
+            letterSpacing: "-0.01em",
+          }}>
             Think clearly.<br />
-            <span style={{ color: "#3a3835" }}>Write freely.</span>
+            <span style={{ color: "#404040" }}>Write freely.</span>
           </h1>
-          <p style={{ color: "#2e2c28", fontSize: "14px", lineHeight: "1.7" }}>
-            A minimal space for your thoughts,<br />ideas, and everything in between.
+          <p style={{ color: "#383634", fontSize: "15px", lineHeight: "1.7" }}>
+            A minimal space for your thoughts,<br />
+            ideas, and everything in between.
           </p>
         </div>
 
-        {/* Sign in */}
+        {/* Sign in button — always white */}
         <button
-          onClick={handleSignIn} disabled={loading}
-          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", padding: "15px 24px", background: "#ffffff", border: "none", borderRadius: "12px", color: "#0e0d0b", fontSize: "15px", fontFamily: "'DM Sans',sans-serif", fontWeight: 500, cursor: loading ? "wait" : "pointer", transition: "all 0.2s ease", boxShadow: "0 1px 0 rgba(255,255,255,0.1)" }}
+          onClick={handleSignIn}
+          disabled={loading}
+          style={{
+            width: "100%",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: "12px",
+            padding: "15px 24px",
+            background: "#ffffff",
+            border: "none", borderRadius: "14px",
+            color: "#0e0d0b",
+            fontSize: "16px", fontFamily: "'DM Sans',sans-serif", fontWeight: 500,
+            cursor: loading ? "wait" : "pointer",
+            boxShadow: "0 2px 12px rgba(0,0,0,0.3)",
+            transition: "transform 0.15s ease, box-shadow 0.15s ease",
+          }}
           onMouseEnter={e => { if (!isMobile) { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.4)"; }}}
-          onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 1px 0 rgba(255,255,255,0.1)"; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.3)"; }}
+          onTouchStart={e => { e.currentTarget.style.transform = "scale(0.98)"; }}
+          onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
         >
           {loading ? (
-            <div style={{ width: "18px", height: "18px", borderRadius: "50%", border: "2px solid #ccc", borderTopColor: "#333", animation: "spin 0.8s linear infinite" }} />
+            <div style={{ width: "20px", height: "20px", borderRadius: "50%", border: "2px solid #ccc", borderTopColor: "#333", animation: "spin 0.8s linear infinite" }} />
           ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24">
+            <svg width="20" height="20" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
               <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
@@ -167,28 +179,40 @@ export function LoginPage() {
           {loading ? "Signing in…" : "Continue with Google"}
         </button>
 
-        <p style={{ textAlign: "center", marginTop: "14px", color: "#1e1d1a", fontSize: "12px" }}>
+        <p style={{ textAlign: "center", marginTop: "14px", color: "#252320", fontSize: "12px" }}>
           Free forever · No credit card required
         </p>
 
-        {/* Feature pills */}
-        <div style={{ display: "flex", justifyContent: "center", gap: "6px", marginTop: "32px", flexWrap: "wrap" }}>
-          {["Rich editor", "Dark mode", "AI assistant", "Export"].map(f => (
-            <span key={f} style={{ fontSize: "11px", color: "#2a2825", background: "#1a1916", border: "1px solid #252320", borderRadius: "999px", padding: "3px 10px" }}>{f}</span>
+        {/* Feature pills — single row on mobile */}
+        <div style={{ display: "flex", justifyContent: "center", gap: "6px", marginTop: "28px", flexWrap: isMobile ? "nowrap" : "wrap", overflowX: isMobile ? "auto" : "visible", paddingBottom: "4px" }}>
+          {["Rich editor", "Dark mode", "AI", "Voice", "Export"].map(f => (
+            <span key={f} style={{
+              fontSize: "11px", color: "#2a2825",
+              background: "#161412", border: "1px solid #222",
+              borderRadius: "999px", padding: "4px 12px",
+              whiteSpace: "nowrap", flexShrink: 0,
+            }}>{f}</span>
           ))}
         </div>
 
-        {/* Mobile: mini note previews at bottom */}
+        {/* Mobile mini note previews */}
         {isMobile && mounted && (
-          <div style={{ marginTop: "48px", display: "flex", gap: "8px", justifyContent: "center", opacity: 0.3 }}>
-            {["📋 Meeting notes", "💡 Ideas", "📔 Journal"].map(t => (
-              <div key={t} style={{ background: "#1a1916", border: "1px solid #252320", borderRadius: "8px", padding: "6px 10px", fontSize: "10px", color: "#3a3835", fontFamily: "'DM Sans',sans-serif", whiteSpace: "nowrap" }}>{t}</div>
+          <div style={{ display: "flex", gap: "8px", justifyContent: "center", marginTop: "40px", opacity: 0.35 }}>
+            {["📋 Meeting", "💡 Ideas", "📔 Journal"].map(t => (
+              <div key={t} style={{
+                background: "#141210", border: "1px solid #1e1c1a",
+                borderRadius: "10px", padding: "6px 12px",
+                fontSize: "11px", color: "#3a3835",
+                fontFamily: "'DM Sans',sans-serif", whiteSpace: "nowrap",
+              }}>{t}</div>
             ))}
           </div>
         )}
       </div>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 }

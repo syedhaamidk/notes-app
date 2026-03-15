@@ -198,75 +198,55 @@ body {
 }
 
 /* ===== MOBILE OPTIMIZATIONS ===== */
-
-/* Scrollable format toolbar on mobile */
 @media (max-width: 767px) {
+
+  /* Format toolbar — single scrollable row */
   .format-toolbar {
     overflow-x: auto;
     overflow-y: hidden;
     flex-wrap: nowrap;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
-    padding: 4px 8px;
-    gap: 1px;
+    padding: 0 8px;
+    gap: 0;
+    height: 44px;
+    align-items: center;
   }
   .format-toolbar::-webkit-scrollbar { display: none; }
 
   .format-btn {
-    min-width: 32px;
-    height: 32px;
+    min-width: 36px;
+    height: 36px;
     flex-shrink: 0;
-    font-size: 14px;
+    font-size: 15px;
+    border-radius: 8px;
   }
 
   .format-divider {
     flex-shrink: 0;
-    margin: 0 3px;
+    height: 18px;
+    margin: 0 4px;
   }
 
-  /* Bigger tap targets */
-  .mobile-tap {
-    min-height: 44px;
-    min-width: 44px;
-  }
-
-  /* Dropdowns always open down and stay on screen */
-  .dropdown-menu {
-    position: fixed !important;
-    left: 8px !important;
-    right: 8px !important;
-    top: auto !important;
-    bottom: 80px !important;
-    width: auto !important;
-    max-height: 60vh;
-    overflow-y: auto;
-    border-radius: 16px !important;
-    z-index: 100 !important;
-  }
-
-  /* Bigger editor text on mobile */
+  /* Editor */
   .rich-editor {
     font-size: 17px;
     line-height: 1.9;
+    padding-bottom: 120px;
   }
 
-  /* Full screen modals on mobile */
-  .modal-mobile {
-    border-radius: 20px 20px 0 0 !important;
-    max-height: 85vh;
+  /* Touch feedback */
+  button:active {
+    opacity: 0.65;
+    transform: scale(0.96);
+    transition: all 0.05s ease;
   }
 }
 
-/* Swipe hint animation */
+/* Swipe animation */
 @keyframes swipeHint {
-  0% { transform: translateX(0); opacity: 0.6; }
-  50% { transform: translateX(8px); opacity: 1; }
-  100% { transform: translateX(0); opacity: 0.6; }
-}
-
-/* Touch feedback */
-@media (hover: none) {
-  button:active { opacity: 0.7; transform: scale(0.97); }
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(8px); }
 }
 
 /* ===== AI PANEL MOBILE ===== */

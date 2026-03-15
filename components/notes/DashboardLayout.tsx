@@ -111,7 +111,8 @@ export function DashboardLayout({ user }: Props) {
       body: JSON.stringify(data),
     });
     const updated = await res.json();
-    setNotes(prev => prev.map(n => n.id === id ? updated : n));
+    // Always refresh the full list so filters (pinned/archive/trash) stay in sync
+    await fetchNotes();
     if (selectedNote?.id === id) setSelectedNote(updated);
     return updated;
   };
@@ -124,8 +125,12 @@ export function DashboardLayout({ user }: Props) {
   };
 
   const trashNote = async (id: string) => {
-    await updateNote(id, { isTrashed: true, isPinned: false });
-    setNotes(prev => prev.filter(n => n.id !== id));
+    await fetch(`/api/notes/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isTrashed: true, isPinned: false }),
+    });
+    await fetchNotes();
     if (selectedNote?.id === id) { setSelectedNote(null); setMobileView("list"); }
     toast.success("Moved to trash");
   };
@@ -178,7 +183,7 @@ export function DashboardLayout({ user }: Props) {
       <div className="flex flex-1 overflow-hidden min-w-0">
         {/* Notes list */}
         <div className={`flex flex-col border-r flex-shrink-0 ${mobileView === "editor" ? "hidden md:flex" : "flex"}`}
-          style={{ width: "300px", minWidth: "260px", maxWidth: "320px", borderColor: "var(--border)", background: "var(--surface)" }}>
+          style={{ width: "100%", maxWidth: "320px", borderColor: "var(--border)", background: "var(--surface)" }}>
 
           <div className="flex items-center gap-2 px-3 py-2.5 border-b" style={{ borderColor: "var(--border)" }}>
             <button

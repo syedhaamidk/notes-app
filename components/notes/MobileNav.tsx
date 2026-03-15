@@ -1,5 +1,5 @@
 "use client";
-import { ArrowLeft, Plus, Mic, Menu } from "lucide-react";
+import { ArrowLeft, Plus, Mic, Menu, PenLine } from "lucide-react";
 import { useState } from "react";
 import { VoiceRecorder } from "./VoiceRecorder";
 
@@ -17,48 +17,104 @@ export function MobileNav({ mobileView, onBack, onNew, hasNote, onVoiceInsert, o
 
   return (
     <>
-      <div className="md:hidden fixed bottom-0 left-0 right-0 flex items-center justify-between px-4 py-3 pb-safe border-t z-20"
-        style={{ background: "var(--surface)", borderColor: "var(--border)", backdropFilter: "blur(12px)" }}>
+      <div
+        className="md:hidden fixed bottom-0 left-0 right-0 z-20 flex items-center justify-between"
+        style={{
+          background: "var(--surface)",
+          borderTop: "1px solid var(--border)",
+          padding: "10px 16px",
+          paddingBottom: "max(10px, env(safe-area-inset-bottom))",
+          gap: "10px",
+        }}>
 
-        {/* Left side */}
-        <div className="flex items-center gap-2">
-          {mobileView === "editor" && hasNote ? (
-            <button onClick={onBack}
-              className="flex items-center gap-1.5 py-2 px-3 rounded-xl"
-              style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", fontSize: "14px" }}>
-              <ArrowLeft size={16} /> Notes
+        {mobileView === "list" ? (
+          // List view bottom bar
+          <>
+            <button
+              onClick={onMenuOpen}
+              style={{
+                width: "42px", height: "42px",
+                borderRadius: "12px",
+                background: "var(--surface-hover)",
+                border: "1px solid var(--border)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "var(--text-secondary)", cursor: "pointer",
+              }}>
+              <Menu size={18} />
             </button>
-          ) : (
-            <button onClick={onMenuOpen}
-              className="p-2.5 rounded-xl"
-              style={{ color: "var(--text-secondary)", background: "var(--surface-hover)" }}>
-              <Menu size={17} />
-            </button>
-          )}
-        </div>
 
-        {/* Right side */}
-        <div className="flex items-center gap-2">
-          {/* Voice button - always visible */}
-          {mobileView === "editor" && hasNote && (
-            <button onClick={() => setShowVoice(true)}
-              className="flex items-center gap-1.5 py-2.5 px-3 rounded-xl transition-all"
-              style={{ background: "var(--surface-hover)", color: "var(--text-secondary)" }}>
-              <Mic size={16} />
+            <button
+              onClick={onNew}
+              style={{
+                flex: 1, height: "42px",
+                borderRadius: "12px",
+                background: "var(--text)",
+                border: "none",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                color: "var(--bg)",
+                fontFamily: "var(--font-body)", fontSize: "15px", fontWeight: 500,
+                cursor: "pointer",
+              }}>
+              <Plus size={16} /> New note
             </button>
-          )}
+          </>
+        ) : (
+          // Editor view bottom bar
+          <>
+            <button
+              onClick={onBack}
+              style={{
+                height: "42px", padding: "0 14px",
+                borderRadius: "12px",
+                background: "var(--surface-hover)",
+                border: "1px solid var(--border)",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+                color: "var(--text-secondary)",
+                fontFamily: "var(--font-body)", fontSize: "14px",
+                cursor: "pointer", whiteSpace: "nowrap",
+              }}>
+              <ArrowLeft size={15} /> Notes
+            </button>
 
-          <button onClick={onNew}
-            className="flex items-center gap-2 py-2.5 px-4 rounded-xl transition-all hover:opacity-80"
-            style={{ background: "var(--text)", color: "var(--bg)", fontFamily: "var(--font-body)", fontSize: "14px", fontWeight: 500 }}>
-            <Plus size={15} /> New
-          </button>
-        </div>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                onClick={() => setShowVoice(true)}
+                style={{
+                  width: "42px", height: "42px",
+                  borderRadius: "12px",
+                  background: "var(--surface-hover)",
+                  border: "1px solid var(--border)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "var(--text-secondary)", cursor: "pointer",
+                }}
+                title="Voice to text">
+                <Mic size={17} />
+              </button>
+
+              <button
+                onClick={onNew}
+                style={{
+                  width: "42px", height: "42px",
+                  borderRadius: "12px",
+                  background: "var(--text)",
+                  border: "none",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "var(--bg)", cursor: "pointer",
+                }}
+                title="New note">
+                <PenLine size={17} />
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {showVoice && (
         <VoiceRecorder
-          onTranscript={(text) => { onVoiceInsert?.(text); }}
+          onTranscript={(text) => {
+            onVoiceInsert?.(text);
+            setShowVoice(false);
+          }}
           onClose={() => setShowVoice(false)}
         />
       )}
