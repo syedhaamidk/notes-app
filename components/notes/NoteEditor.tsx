@@ -310,8 +310,8 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
           style={{
             display: "flex", alignItems: "center", gap: "5px",
             padding: "5px 11px", borderRadius: "20px",
-            background: showAI ? "var(--accent, #5DCAA5)" : "rgba(93,202,165,0.12)",
-            color: showAI ? "#fff" : "var(--accent, #5DCAA5)",
+            background: showAI ? "#5DCAA5" : "rgba(93,202,165,0.15)",
+            color: showAI ? "#fff" : "#5DCAA5",
             border: "none", cursor: "pointer",
             fontSize: "11px", fontWeight: 500, fontFamily: "var(--font-body)",
             flexShrink: 0,
