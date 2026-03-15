@@ -131,7 +131,7 @@ export function LoginPage() {
         <div style={{ textAlign: "center", marginBottom: isMobile ? "28px" : "36px" }}>
           <h1 style={{
             fontFamily: "Georgia,serif",
-            fontSize: isMobile ? "38px" : "42px",
+            fontSize: isMobile ? "36px" : "42px",
             fontWeight: 400, color: "#ffffff",
             lineHeight: "1.15", marginBottom: "14px",
             letterSpacing: "-0.01em",
@@ -163,8 +163,8 @@ export function LoginPage() {
           }}
           onMouseEnter={e => { if (!isMobile) { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.4)"; }}}
           onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.3)"; }}
-          onTouchStart={e => { e.currentTarget.style.transform = "scale(0.98)"; }}
-          onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
+          onTouchStart={e => { e.currentTarget.style.transform = "scale(0.97)"; e.currentTarget.style.opacity = "0.9"; }}
+          onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.opacity = "1"; }}
         >
           {loading ? (
             <div style={{ width: "20px", height: "20px", borderRadius: "50%", border: "2px solid #ccc", borderTopColor: "#333", animation: "spin 0.8s linear infinite" }} />
@@ -184,7 +184,7 @@ export function LoginPage() {
         </p>
 
         {/* Feature pills — single row on mobile */}
-        <div style={{ display: "flex", justifyContent: "center", gap: "6px", marginTop: "28px", flexWrap: isMobile ? "nowrap" : "wrap", overflowX: isMobile ? "auto" : "visible", paddingBottom: "4px" }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: "6px", marginTop: "28px", flexWrap: "wrap", paddingBottom: "4px" }}>
           {["Rich editor", "Dark mode", "AI", "Voice", "Export"].map(f => (
             <span key={f} style={{
               fontSize: "11px", color: "#6a6560",
@@ -197,7 +197,7 @@ export function LoginPage() {
 
         {/* Mobile mini note previews */}
         {isMobile && mounted && (
-          <div style={{ display: "flex", gap: "8px", justifyContent: "center", marginTop: "40px", opacity: 0.35 }}>
+          <div style={{ display: "flex", gap: "8px", justifyContent: "center", marginTop: "40px", opacity: 0.6 }}>
             {["📋 Meeting", "💡 Ideas", "📔 Journal"].map(t => (
               <div key={t} style={{
                 background: "#1a1815", border: "1px solid #2a2825",

@@ -23,17 +23,23 @@ export function DashboardLayout({ user }: Props) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileView, setMobileView] = useState<"list" | "editor">("list");
+  const [isMobile, setIsMobile] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const filterRef = useRef(filter);
   const selectedTagRef = useRef(selectedTag);
   const searchRef2 = useRef(search);
 
-  // Keep refs in sync so fetchNotes always uses latest values
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
   useEffect(() => { filterRef.current = filter; }, [filter]);
   useEffect(() => { selectedTagRef.current = selectedTag; }, [selectedTag]);
   useEffect(() => { searchRef2.current = search; }, [search]);
 
-  // Touch swipe
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
 
@@ -49,8 +55,8 @@ export function DashboardLayout({ user }: Props) {
     if (dx > 60 && dy < 60 && touchStartX.current < 30 && mobileView === "list") setSidebarOpen(true);
   };
 
-  // Always fetches with current filter/tag/search via refs
   const fetchNotes = useCallback(async () => {
+    setLoading(true);
     const params = new URLSearchParams({ filter: filterRef.current });
     if (selectedTagRef.current) params.set("tag", selectedTagRef.current);
     if (searchRef2.current) params.set("search", searchRef2.current);
@@ -64,7 +70,7 @@ export function DashboardLayout({ user }: Props) {
     } finally {
       setLoading(false);
     }
-  }, []); // no deps — uses refs
+  }, []);
 
   const fetchTags = useCallback(async () => {
     try {
@@ -77,7 +83,6 @@ export function DashboardLayout({ user }: Props) {
     }
   }, []);
 
-  // Refetch when filter/tag/search changes
   useEffect(() => { fetchNotes(); }, [filter, selectedTag, search]);
   useEffect(() => { fetchTags(); }, []);
 
@@ -128,35 +133,25 @@ export function DashboardLayout({ user }: Props) {
     const updated = await res.json();
     if (!updated?.id) return;
 
-    // Update local state immediately for responsiveness
     setNotes(prev => {
-      // If note should no longer appear in current filter, remove it
       const shouldRemove =
         (filterRef.current === "all" && (updated.isArchived || updated.isTrashed)) ||
         (filterRef.current === "pinned" && (!updated.isPinned || updated.isTrashed || updated.isArchived)) ||
         (filterRef.current === "archive" && (!updated.isArchived || updated.isTrashed)) ||
         (filterRef.current === "trash" && !updated.isTrashed);
-
       if (shouldRemove) return prev.filter(n => n.id !== id);
       return prev.map(n => n.id === id ? updated : n);
     });
 
     if (selectedNote?.id === id) {
-      // If note removed from current view, deselect
       const shouldDeselect =
         (filterRef.current === "all" && (updated.isArchived || updated.isTrashed)) ||
         (filterRef.current === "pinned" && (!updated.isPinned || updated.isTrashed || updated.isArchived)) ||
         (filterRef.current === "archive" && (!updated.isArchived || updated.isTrashed)) ||
         (filterRef.current === "trash" && !updated.isTrashed);
-
-      if (shouldDeselect) {
-        setSelectedNote(null);
-        setMobileView("list");
-      } else {
-        setSelectedNote(updated);
-      }
+      if (shouldDeselect) { setSelectedNote(null); setMobileView("list"); }
+      else setSelectedNote(updated);
     }
-
     return updated;
   };
 
@@ -196,6 +191,11 @@ export function DashboardLayout({ user }: Props) {
     setMobileView("list");
   };
 
+  // On mobile: full screen list OR full screen editor
+  // On desktop: sidebar + list + editor
+  const showList = !isMobile || mobileView === "list";
+  const showEditor = !isMobile || mobileView === "editor";
+
   return (
     <div
       className="flex h-screen overflow-hidden"
@@ -233,84 +233,94 @@ export function DashboardLayout({ user }: Props) {
       />
 
       <div className="flex flex-1 overflow-hidden min-w-0">
-        {/* Notes list panel */}
-        <div
-          className={`flex flex-col border-r flex-shrink-0 ${mobileView === "editor" ? "hidden md:flex" : "flex"}`}
-          style={{ width: "100%", maxWidth: "320px", borderColor: "var(--border)", background: "var(--surface)" }}>
 
-          <div className="flex items-center gap-2 px-3 py-2.5 border-b" style={{ borderColor: "var(--border)" }}>
-            <button
-              className="flex-shrink-0 p-2 rounded-lg transition-all hover:opacity-70"
-              style={{ color: "var(--text-muted)" }}
-              onClick={() => { if (window.innerWidth < 768) setSidebarOpen(true); else toggleSidebar(); }}>
-              {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <Menu size={15} />}
-            </button>
-            <div className="flex-1 relative min-w-0">
-              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
-              <input
-                ref={searchRef}
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search…"
-                className="w-full pl-7 pr-3 py-2 rounded-lg text-sm"
-                style={{ background: "var(--surface-hover)", border: "1px solid var(--border-light)", color: "var(--text)", fontFamily: "var(--font-body)", outline: "none", fontSize: "14px" }}
-              />
-            </div>
-            <button onClick={createNote}
-              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:opacity-70"
-              style={{ background: "var(--text)", color: "var(--bg)" }}>
-              <Plus size={15} />
-            </button>
-          </div>
+        {/* Notes list panel — full width on mobile when showing list */}
+        {showList && (
+          <div
+            className="flex flex-col border-r flex-shrink-0"
+            style={{
+              width: isMobile ? "100%" : "320px",
+              borderColor: "var(--border)",
+              background: "var(--surface)",
+            }}>
 
-          <NotesList
-            notes={notes}
-            loading={loading}
-            selectedNote={selectedNote}
-            filter={filter}
-            search={search}
-            onSelect={(note) => { setSelectedNote(note); setMobileView("editor"); }}
-            onPin={(id) => updateNote(id, { isPinned: !notes.find(n => n.id === id)?.isPinned })}
-            onTrash={trashNote}
-            onDelete={deleteNote}
-            onRestore={(id) => updateNote(id, { isTrashed: false })}
-          />
-        </div>
-
-        {/* Editor panel */}
-        <div className={`flex-1 overflow-hidden min-w-0 ${mobileView === "list" ? "hidden md:flex" : "flex"} flex-col`}>
-          {selectedNote ? (
-            <NoteEditor
-              key={selectedNote.id}
-              note={selectedNote}
-              tags={tags}
-              onUpdate={updateNote}
-              onTrash={() => trashNote(selectedNote.id)}
-              onDelete={() => deleteNote(selectedNote.id)}
-              onBack={() => setMobileView("list")}
-              onTagsChange={fetchTags}
-              onDuplicate={duplicateNote}
-            />
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center gap-3 pb-20 md:pb-0">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
-                style={{ background: "var(--surface-hover)" }}>
-                <span style={{ fontFamily: "var(--font-display)", fontSize: "20px", color: "var(--text-muted)" }}>n</span>
+            {/* List header */}
+            <div className="flex items-center gap-2 px-3 py-2.5 border-b" style={{ borderColor: "var(--border)" }}>
+              <button
+                className="flex-shrink-0 p-2 rounded-lg transition-all hover:opacity-70"
+                style={{ color: "var(--text-muted)" }}
+                onClick={() => { if (isMobile) setSidebarOpen(true); else toggleSidebar(); }}>
+                <Menu size={15} />
+              </button>
+              <div className="flex-1 relative min-w-0">
+                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
+                <input
+                  ref={searchRef}
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search…"
+                  className="w-full pl-7 pr-3 py-2 rounded-lg text-sm"
+                  style={{ background: "var(--surface-hover)", border: "1px solid var(--border-light)", color: "var(--text)", fontFamily: "var(--font-body)", outline: "none", fontSize: "14px" }}
+                />
               </div>
-              <p style={{ fontFamily: "var(--font-display)", fontSize: "15px", color: "var(--text-secondary)" }}>
-                No note selected
-              </p>
-              <p className="hidden md:block" style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                ⌘N to create · ⌘B to toggle sidebar
-              </p>
               <button onClick={createNote}
-                className="mt-1 flex items-center gap-2 px-5 py-3 rounded-xl text-sm transition-all hover:opacity-80"
-                style={{ background: "var(--text)", color: "var(--bg)", fontFamily: "var(--font-body)" }}>
-                <Plus size={14} /> New note
+                className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:opacity-70"
+                style={{ background: "var(--text)", color: "var(--bg)" }}>
+                <Plus size={15} />
               </button>
             </div>
-          )}
-        </div>
+
+            <NotesList
+              notes={notes}
+              loading={loading}
+              selectedNote={selectedNote}
+              filter={filter}
+              search={search}
+              onSelect={(note) => { setSelectedNote(note); setMobileView("editor"); }}
+              onPin={(id) => updateNote(id, { isPinned: !notes.find(n => n.id === id)?.isPinned })}
+              onTrash={trashNote}
+              onDelete={deleteNote}
+              onRestore={(id) => updateNote(id, { isTrashed: false })}
+            />
+          </div>
+        )}
+
+        {/* Editor panel — full width on mobile when showing editor */}
+        {showEditor && (
+          <div className="flex-1 overflow-hidden min-w-0 flex flex-col">
+            {selectedNote ? (
+              <NoteEditor
+                key={selectedNote.id}
+                note={selectedNote}
+                tags={tags}
+                onUpdate={updateNote}
+                onTrash={() => trashNote(selectedNote.id)}
+                onDelete={() => deleteNote(selectedNote.id)}
+                onBack={() => setMobileView("list")}
+                onTagsChange={fetchTags}
+                onDuplicate={duplicateNote}
+              />
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center gap-3 pb-20 md:pb-0">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                  style={{ background: "var(--surface-hover)" }}>
+                  <span style={{ fontFamily: "var(--font-display)", fontSize: "20px", color: "var(--text-muted)" }}>n</span>
+                </div>
+                <p style={{ fontFamily: "var(--font-display)", fontSize: "15px", color: "var(--text-secondary)" }}>
+                  No note selected
+                </p>
+                <p className="hidden md:block" style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                  ⌘N to create · ⌘B to toggle sidebar
+                </p>
+                <button onClick={createNote}
+                  className="mt-1 flex items-center gap-2 px-5 py-3 rounded-xl text-sm transition-all hover:opacity-80"
+                  style={{ background: "var(--text)", color: "var(--bg)", fontFamily: "var(--font-body)" }}>
+                  <Plus size={14} /> New note
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <MobileNav
