@@ -63,6 +63,15 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
 
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimeout = useRef<NodeJS.Timeout>();
+  const titleRef = useRef(title);
+  useEffect(() => { titleRef.current = title; }, [title]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeout.current) clearTimeout(saveTimeout.current);
+    };
+  }, []);
 
   // Sync local note when prop changes (e.g. after save)
   useEffect(() => {
@@ -98,8 +107,8 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     const text = editorRef.current?.innerText || "";
     const wc = text.trim() ? text.trim().split(/\s+/).length : 0;
     setWordCount(wc);
-    debounceSave({ title, content, wordCount: wc });
-  }, [title, debounceSave]);
+    debounceSave({ title: titleRef.current, content, wordCount: wc });
+  }, [debounceSave]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setTitle(e.target.value);

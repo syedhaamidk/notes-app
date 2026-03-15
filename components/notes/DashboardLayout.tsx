@@ -54,16 +54,27 @@ export function DashboardLayout({ user }: Props) {
     const params = new URLSearchParams({ filter: filterRef.current });
     if (selectedTagRef.current) params.set("tag", selectedTagRef.current);
     if (searchRef2.current) params.set("search", searchRef2.current);
-    const res = await fetch(`/api/notes?${params}`);
-    const data = await res.json();
-    setNotes(Array.isArray(data) ? data : []);
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/notes?${params}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setNotes(Array.isArray(data) ? data : []);
+    } catch {
+      setNotes([]);
+    } finally {
+      setLoading(false);
+    }
   }, []); // no deps — uses refs
 
   const fetchTags = useCallback(async () => {
-    const res = await fetch("/api/tags");
-    const data = await res.json();
-    setTags(Array.isArray(data) ? data : []);
+    try {
+      const res = await fetch("/api/tags");
+      if (!res.ok) return;
+      const data = await res.json();
+      setTags(Array.isArray(data) ? data : []);
+    } catch {
+      setTags([]);
+    }
   }, []);
 
   // Refetch when filter/tag/search changes
@@ -113,7 +124,9 @@ export function DashboardLayout({ user }: Props) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
+    if (!res.ok) throw new Error("Update failed");
     const updated = await res.json();
+    if (!updated?.id) return;
 
     // Update local state immediately for responsiveness
     setNotes(prev => {

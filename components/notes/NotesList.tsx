@@ -58,7 +58,7 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
     const [hovered, setHovered] = useState(false);
     const isSelected = selectedNote?.id === note.id;
     const bg = note.color ? (NOTE_COLORS[note.color] || "var(--surface)") : "var(--surface)";
-    const rawPreview = note.content.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 80);
+    const rawPreview = (note.content || "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 80);
 
     const handlePin = (e: React.MouseEvent) => {
       e.preventDefault();
@@ -121,7 +121,7 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
                 <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>
                   {format(new Date(note.updatedAt), "MMM d")}
                 </span>
-                {note.tags.slice(0, 2).map(nt => (
+                {(note.tags || []).slice(0, 2).map(nt => (
                   <span key={nt.tagId} className="px-1.5 py-0.5 rounded-full"
                     style={{ background: nt.tag.color + "22", color: nt.tag.color, fontSize: "10px" }}>
                     {nt.tag.name}
