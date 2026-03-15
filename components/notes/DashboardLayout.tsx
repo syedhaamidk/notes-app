@@ -1,10 +1,11 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Note, Tag } from "@/types";
 import { Sidebar } from "./Sidebar";
 import { NotesList } from "./NotesList";
 import { NoteEditor } from "./NoteEditor";
 import { MobileNav } from "./MobileNav";
+import { PanelLeftClose, PanelLeftOpen, Search, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 
 interface Props {
@@ -20,7 +21,9 @@ export function DashboardLayout({ user }: Props) {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileView, setMobileView] = useState<"list" | "editor">("list");
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const fetchNotes = useCallback(async () => {
     const params = new URLSearchParams({ filter });
@@ -41,14 +44,30 @@ export function DashboardLayout({ user }: Props) {
   useEffect(() => { fetchNotes(); }, [fetchNotes]);
   useEffect(() => { fetchTags(); }, [fetchTags]);
 
-  // Keyboard shortcut: Cmd+N for new note
+  // Restore sidebar collapse preference
+  useEffect(() => {
+    const stored = localStorage.getItem("sidebarCollapsed");
+    if (stored === "true") setSidebarCollapsed(true);
+  }, []);
+
+  const toggleSidebar = () => {
+    const next = !sidebarCollapsed;
+    setSidebarCollapsed(next);
+    localStorage.setItem("sidebarCollapsed", String(next));
+  };
+
+  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "n") { e.preventDefault(); createNote(); }
+      if ((e.metaKey || e.ctrlKey)) {
+        if (e.key === "n") { e.preventDefault(); createNote(); }
+        if (e.key === "b") { e.preventDefault(); toggleSidebar(); }
+        if (e.key === "f") { e.preventDefault(); searchRef.current?.focus(); }
+      }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, []);
+  }, [sidebarCollapsed]);
 
   const createNote = async () => {
     const res = await fetch("/api/notes", {
@@ -62,7 +81,7 @@ export function DashboardLayout({ user }: Props) {
     setMobileView("editor");
   };
 
-  const updateNote = async (id: string, data: Partial<Note> & { tagIds?: string[] }) => {
+  const updateNote = async (id: string, data: any) => {
     const res = await fetch(`/api/notes/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -78,7 +97,7 @@ export function DashboardLayout({ user }: Props) {
     await fetch(`/api/notes/${id}`, { method: "DELETE" });
     setNotes(prev => prev.filter(n => n.id !== id));
     if (selectedNote?.id === id) { setSelectedNote(null); setMobileView("list"); }
-    toast.success("Note deleted permanently");
+    toast.success("Deleted permanently");
   };
 
   const trashNote = async (id: string) => {
@@ -99,42 +118,66 @@ export function DashboardLayout({ user }: Props) {
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
-      <Sidebar
-        user={user}
-        tags={tags}
-        filter={filter}
-        selectedTag={selectedTag}
-        noteCount={notes.length}
-        onFilterChange={(f) => { setFilter(f); setSelectedTag(null); setSelectedNote(null); }}
-        onTagSelect={(t) => { setSelectedTag(t); setFilter("all"); setSelectedNote(null); }}
-        onTagsChange={fetchTags}
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        onNewNote={createNote}
-      />
+      {/* Sidebar */}
+      <div style={{
+        width: sidebarCollapsed ? "0px" : "220px",
+        minWidth: sidebarCollapsed ? "0px" : "220px",
+        overflow: "hidden",
+        transition: "width 0.25s ease, min-width 0.25s ease",
+        flexShrink: 0,
+      }}>
+        <Sidebar
+          user={user} tags={tags} filter={filter} selectedTag={selectedTag}
+          noteCount={notes.length}
+          onFilterChange={(f) => { setFilter(f); setSelectedTag(null); setSelectedNote(null); }}
+          onTagSelect={(t) => { setSelectedTag(t); setFilter("all"); setSelectedNote(null); }}
+          onTagsChange={fetchTags}
+          open={sidebarOpen} onClose={() => setSidebarOpen(false)}
+          onNewNote={createNote}
+        />
+      </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Notes list */}
+        {/* Notes list panel */}
         <div className={`flex flex-col border-r ${mobileView === "editor" ? "hidden md:flex" : "flex"} md:flex`}
-          style={{ width: "300px", minWidth: "260px", maxWidth: "360px", borderColor: "var(--border)", background: "var(--surface)", flexShrink: 0 }}>
+          style={{ width: "300px", minWidth: "260px", maxWidth: "340px", borderColor: "var(--border)", background: "var(--surface)", flexShrink: 0 }}>
 
-          <div className="flex items-center gap-2 px-3 py-3 border-b" style={{ borderColor: "var(--border)" }}>
-            <button className="md:hidden p-1.5 rounded-lg" style={{ color: "var(--text-secondary)" }}
-              onClick={() => setSidebarOpen(true)}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          {/* List header */}
+          <div className="flex items-center gap-2 px-3 py-2.5 border-b" style={{ borderColor: "var(--border)" }}>
+            {/* Sidebar toggle */}
+            <button
+              onClick={() => { if (window.innerWidth < 768) setSidebarOpen(true); else toggleSidebar(); }}
+              className="p-1.5 rounded-lg transition-all hover:opacity-70 flex-shrink-0"
+              style={{ color: "var(--text-muted)" }}
+              title="Toggle sidebar (⌘B)">
+              {sidebarCollapsed
+                ? <PanelLeftOpen size={15} />
+                : <PanelLeftClose size={15} />}
             </button>
+
             <div className="flex-1 relative">
-              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: "var(--text-muted)" }}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-              <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search…"
-                className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm"
-                style={{ background: "var(--surface-hover)", border: "1px solid var(--border-light)", color: "var(--text)", fontFamily: "var(--font-body)", outline: "none" }}
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
+              <input
+                ref={searchRef}
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search… (⌘F)"
+                className="w-full pl-7 pr-3 py-1.5 rounded-lg text-sm"
+                style={{ background: "var(--surface-hover)", border: "1px solid var(--border-light)", color: "var(--text)", fontFamily: "var(--font-body)", outline: "none", fontSize: "13px" }}
               />
             </div>
+
+            <button onClick={createNote}
+              className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:opacity-70"
+              style={{ background: "var(--text)", color: "var(--bg)" }}
+              title="New note (⌘N)">
+              <Plus size={14} />
+            </button>
           </div>
 
           <NotesList
             notes={notes} loading={loading} selectedNote={selectedNote} filter={filter}
+            search={search}
             onSelect={(note) => { setSelectedNote(note); setMobileView("editor"); }}
             onPin={(id) => updateNote(id, { isPinned: !notes.find(n => n.id === id)?.isPinned })}
             onTrash={trashNote} onDelete={deleteNote}
@@ -147,8 +190,7 @@ export function DashboardLayout({ user }: Props) {
           {selectedNote ? (
             <NoteEditor
               key={selectedNote.id}
-              note={selectedNote}
-              tags={tags}
+              note={selectedNote} tags={tags}
               onUpdate={updateNote}
               onTrash={() => trashNote(selectedNote.id)}
               onDelete={() => deleteNote(selectedNote.id)}
@@ -158,16 +200,16 @@ export function DashboardLayout({ user }: Props) {
             />
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center gap-3">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
                 style={{ background: "var(--surface-hover)" }}>
-                <span style={{ fontFamily: "var(--font-display)", fontSize: "24px", color: "var(--text-muted)" }}>n</span>
+                <span style={{ fontFamily: "var(--font-display)", fontSize: "20px", color: "var(--text-muted)" }}>n</span>
               </div>
-              <p style={{ fontFamily: "var(--font-display)", fontSize: "16px", color: "var(--text-secondary)" }}>Select a note</p>
-              <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>or press ⌘N to create one</p>
+              <p style={{ fontFamily: "var(--font-display)", fontSize: "15px", color: "var(--text-secondary)" }}>No note selected</p>
+              <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>⌘N to create · ⌘B to toggle sidebar</p>
               <button onClick={createNote}
                 className="mt-1 flex items-center gap-2 px-4 py-2 rounded-xl text-sm transition-all hover:opacity-80"
                 style={{ background: "var(--text)", color: "var(--bg)", fontFamily: "var(--font-body)" }}>
-                + New note
+                <Plus size={13} /> New note
               </button>
             </div>
           )}
