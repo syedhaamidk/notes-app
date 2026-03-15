@@ -21,26 +21,59 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   try {
     const body = await req.json();
-    const { tagIds, saveVersion, wordCount, ...data } = body;
-    if (data.content !== undefined) {
-      data.wordCount = data.content.replace(/<[^>]*>/g, "").trim()
-        ? data.content.replace(/<[^>]*>/g, "").trim().split(/\s+/).length : 0;
-    } else if (wordCount !== undefined) {
-      data.wordCount = wordCount;
+
+    // Explicitly whitelist every field that can be updated.
+    // This prevents unknown/computed fields from reaching Prisma and causing
+    // PrismaClientValidationError when the frontend sends extra data.
+    const {
+      title,
+      content,
+      emoji,
+      color,
+      coverImage,
+      isPinned,
+      isArchived,
+      isTrashed,
+      isShared,
+      tagIds,
+    } = body;
+
+    // Build the update payload with only defined fields
+    const data: Record<string, unknown> = {};
+    if (title       !== undefined) data.title       = title;
+    if (emoji       !== undefined) data.emoji       = emoji;
+    if (color       !== undefined) data.color       = color;
+    if (coverImage  !== undefined) data.coverImage  = coverImage;
+    if (isPinned    !== undefined) data.isPinned    = isPinned;
+    if (isArchived  !== undefined) data.isArchived  = isArchived;
+    if (isTrashed   !== undefined) data.isTrashed   = isTrashed;
+    if (isShared    !== undefined) data.isShared    = isShared;
+
+    // Derive wordCount from content on the server — never trust the client value
+    if (content !== undefined) {
+      data.content   = content;
+      data.wordCount = content.replace(/<[^>]*>/g, "").trim()
+        ? content.replace(/<[^>]*>/g, "").trim().split(/\s+/).length
+        : 0;
     }
+
     const note = await prisma.note.update({
       where: { id, userId: session.user.id },
       data: {
         ...data,
         ...(tagIds !== undefined && {
-          tags: { deleteMany: {}, create: tagIds.map((tagId: string) => ({ tagId })) },
+          tags: {
+            deleteMany: {},
+            create: tagIds.map((tagId: string) => ({ tagId })),
+          },
         }),
       },
       include: { tags: { include: { tag: true } } },
     });
+
     return NextResponse.json(note);
   } catch (e: any) {
-    console.error("PATCH note error:", e);
+    console.error("PATCH note error:", e.message);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
