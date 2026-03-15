@@ -63,13 +63,6 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
 
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimeout = useRef<NodeJS.Timeout>();
-  const titleRef = useRef(title);
-  useEffect(() => { titleRef.current = title; }, [title]);
-
-  // Cleanup debounce timer on unmount
-  useEffect(() => {
-    return () => { if (saveTimeout.current) clearTimeout(saveTimeout.current); };
-  }, []);
 
   // Sync local note when prop changes (e.g. after save)
   useEffect(() => {
@@ -87,7 +80,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     setWordCount(text.trim() ? text.trim().split(/\s+/).length : 0);
   }, [note.id]);
 
-  const save = useCallback(async (data: Record<string,unknown>) => {
+  const save = useCallback(async (data: Record<string,unknown>): Promise<Note | undefined> => {
     setSaving(true);
     try {
       const updated = await onUpdate(note.id, data);
@@ -96,6 +89,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     } catch (err) {
       console.error("Save failed:", err);
       toast.error("Failed to save — check your connection");
+      return undefined;
     } finally {
       setSaving(false);
     }
@@ -111,8 +105,8 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     const text = editorRef.current?.innerText || "";
     const wc = text.trim() ? text.trim().split(/\s+/).length : 0;
     setWordCount(wc);
-    debounceSave({ title: titleRef.current, content, wordCount: wc });
-  }, [debounceSave]);
+    debounceSave({ title, content, wordCount: wc });
+  }, [title, debounceSave]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setTitle(e.target.value);
@@ -172,7 +166,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
       const reader = new FileReader();
       reader.onload = async (ev) => {
         const updated = await save({ coverImage: ev.target?.result as string });
-        setLocalNote(updated);
+        if (updated) setLocalNote(updated);
         setOpenMenu(null);
         toast.success("Cover image set!");
       };
@@ -185,20 +179,20 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
 
   const handlePin = async () => {
     const updated = await save({ isPinned: !localNote.isPinned });
-    setLocalNote(updated);
+    if (updated) setLocalNote(updated);
     toast.success(localNote.isPinned ? "Unpinned" : "📌 Pinned!");
   };
 
   const handleEmoji = async (emoji: string | null) => {
     const updated = await save({ emoji });
-    setLocalNote(updated);
+    if (updated) setLocalNote(updated);
     setOpenMenu(null);
     toast.success(emoji ? `Emoji set to ${emoji}` : "Emoji removed");
   };
 
   const handleColor = async (colorId: string | null) => {
     const updated = await save({ color: colorId });
-    setLocalNote(updated);
+    if (updated) setLocalNote(updated);
     setOpenMenu(null);
     toast.success(colorId ? "Color applied!" : "Color removed");
   };
@@ -209,12 +203,12 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
       : [...selectedTagIds, tagId];
     setSelectedTagIds(newIds);
     const updated = await save({ tagIds: newIds });
-    setLocalNote(updated);
+    if (updated) setLocalNote(updated);
   };
 
   const handleArchive = async () => {
     const updated = await save({ isArchived: !localNote.isArchived });
-    setLocalNote(updated);
+    if (updated) setLocalNote(updated);
     setOpenMenu(null);
     toast.success(localNote.isArchived ? "Unarchived" : "Archived");
   };
@@ -285,43 +279,23 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     <div className="flex flex-col h-full" style={{ background: editorBg }}>
 
       {/* Top toolbar */}
-      <div className="flex items-center gap-1 px-3 py-2 border-b flex-shrink-0"
+      <div className="flex items-center gap-0.5 px-2 py-2 border-b flex-shrink-0"
         style={{ borderColor:"var(--border)", background:editorBg }}>
 
         <button onClick={onBack} className="md:hidden p-2 rounded-lg hover:bg-black/5 mr-1">
           <ArrowLeft size={15} style={{ color:"var(--text-secondary)" }} />
         </button>
 
-        {/* Save status */}
-        <div className="flex items-center gap-1.5 min-w-0">
-          <div style={{
-            width:"6px", height:"6px", borderRadius:"50%", flexShrink:0,
-            background: saving ? "var(--text-muted)" : "var(--accent)",
-            transition:"background 0.3s ease",
-          }} />
+        <div className="flex-1 flex items-center gap-2 min-w-0 overflow-hidden">
           <span style={{ fontSize:"11px", color:"var(--text-muted)", whiteSpace:"nowrap" }}>
-            {saving ? "Saving…" : `Saved ${format(new Date(localNote.updatedAt), "h:mm a")}`}
+            {saving ? "Saving…" : `Saved ${format(new Date(note.updatedAt), "h:mm a")}`}
           </span>
+          {wordCount > 0 && (
+            <span className="hidden md:inline" style={{ fontSize:"11px", color:"var(--text-muted)" }}>
+              · {wordCount}w
+            </span>
+          )}
         </div>
-
-        <div className="flex-1" />
-
-        {/* AI pill — promoted */}
-        <button
-          onClick={() => { setShowAI(!showAI); closeAll(); }}
-          style={{
-            display:"flex", alignItems:"center", gap:"5px",
-            padding:"5px 11px", borderRadius:"20px",
-            background: showAI ? "var(--accent)" : "rgba(var(--accent-rgb,93,202,165),0.12)",
-            color: showAI ? "#fff" : "var(--accent)",
-            border:"none", cursor:"pointer",
-            fontSize:"11px", fontWeight:500, fontFamily:"var(--font-body)",
-            flexShrink:0,
-          }}
-          title="AI assistant">
-          <Sparkles size={12} />
-          AI
-        </button>
 
         {/* PIN */}
         <TBtn onClick={handlePin} active={localNote.isPinned} title={localNote.isPinned ? "Unpin" : "Pin note"}>
@@ -432,6 +406,11 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
         {/* VOICE */}
         <TBtn onClick={() => setShowVoice(true)} title="Voice to text"><Mic size={14} /></TBtn>
 
+        {/* AI */}
+        <TBtn onClick={() => { setShowAI(!showAI); closeAll(); }} active={showAI} title="AI assistant">
+          <Sparkles size={14} />
+        </TBtn>
+
         {/* EXPORT */}
         <TBtn onClick={() => { setShowExport(true); closeAll(); }} title="Export note">
           <Download size={14} />
@@ -533,7 +512,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
             {/* Date + meta */}
             <div className="flex items-center gap-3 mb-5">
               <p style={{ fontSize:"11px", color:"var(--text-muted)" }}>
-                {format(new Date(localNote.updatedAt), "EEEE, MMMM d, yyyy · h:mm a")}
+                {format(new Date(note.updatedAt), "EEEE, MMMM d, yyyy · h:mm a")}
               </p>
               {localNote.isPinned && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📌 Pinned</span>}
               {localNote.isArchived && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📦 Archived</span>}
@@ -544,7 +523,6 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
               ref={editorRef}
               contentEditable
               suppressContentEditableWarning
-              spellCheck={false}
               className="rich-editor"
               data-placeholder="Start writing…"
               onInput={handleContentChange}
@@ -556,37 +534,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
                 document.execCommand("insertHTML", false, html || text.replace(/\n/g,"<br>"));
               }}
             />
-            {/* Ghost hint — shown when editor is empty */}
-            {wordCount === 0 && (
-              <p style={{
-                fontFamily:"var(--font-display)", fontSize:"14px",
-                color:"var(--text-muted)", marginTop:"12px",
-                pointerEvents:"none", userSelect:"none", opacity:0.5,
-              }}>
-                Press{" "}
-                <kbd style={{
-                  background:"var(--surface-hover)", border:"1px solid var(--border-light)",
-                  borderRadius:"4px", padding:"1px 6px", fontSize:"12px",
-                  fontFamily:"var(--font-mono)", color:"var(--text-muted)",
-                }}>/</kbd>
-                {" "}for commands, or just start writing…
-              </p>
-            )}
           </div>
-        </div>
-
-        {/* Footer stats bar */}
-        <div className="hidden md:flex items-center px-10 py-1.5 border-t flex-shrink-0"
-          style={{ borderColor:"var(--border)", background:editorBg }}>
-          <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>
-            {wordCount} {wordCount === 1 ? "word" : "words"}
-            {editorRef.current?.innerText ? ` · ${editorRef.current.innerText.trim().length} characters` : ""}
-          </span>
-          {wordCount === 0 && (
-            <span style={{ fontSize:"10px", color:"var(--text-muted)", marginLeft:"auto", opacity:0.5 }}>
-              ⌘N new · ⌘B sidebar · / commands
-            </span>
-          )}
         </div>
 
         {/* AI Panel - desktop */}
