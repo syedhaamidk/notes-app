@@ -2,7 +2,7 @@
 import { useState, useRef } from "react";
 import { Note } from "@/types";
 import { X, Download, FileText, Image } from "lucide-react";
-import { format } from "date-fns";
+import { format as dateFns } from "date-fns";
 import toast from "react-hot-toast";
 
 interface Props {
@@ -113,7 +113,7 @@ export function ExportModal({ note, onClose }: Props) {
     URL.revokeObjectURL(url);
   };
 
-  const format_date = (d: string) => format(new Date(d), "MMMM d, yyyy");
+  const format_date = (d: string) => dateFns(new Date(d), "MMMM d, yyyy");
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4"
@@ -210,7 +210,7 @@ import React from "react";
 
 const ExportPreview = React.forwardRef<HTMLDivElement, { note: Note; template: Template }>(
   ({ note, template }, ref) => {
-    const date = format(new Date(note.updatedAt), "MMMM d, yyyy");
+    const date = dateFns(new Date(note.updatedAt), "MMMM d, yyyy");
 
     const styles: Record<Template, React.CSSProperties> = {
       minimal: {
