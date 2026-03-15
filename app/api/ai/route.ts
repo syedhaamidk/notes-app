@@ -43,6 +43,11 @@ Example of correct output format:
   const prompt = prompts[action];
   if (!prompt) return NextResponse.json({ error: "Invalid action" }, { status: 400 });
 
+  // For non-template actions, strip any HTML the model might return
+  const stripHtml = (text: string) => action !== "template" 
+    ? text.replace(/<[^>]*>/g, "").trim() 
+    : text;
+
   const errors: string[] = [];
 
   // Try Groq
@@ -66,7 +71,7 @@ Example of correct output format:
         if (text) {
           // Strip any markdown code fences if model ignored instructions
           text = text.replace(/^```html\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
-          return NextResponse.json({ result: text });
+          return NextResponse.json({ result: stripHtml(text) });
         }
         errors.push(`Groq: empty response`);
       } else {
@@ -90,7 +95,7 @@ Example of correct output format:
         let text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
         if (text) {
           text = text.replace(/^```html\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
-          return NextResponse.json({ result: text });
+          return NextResponse.json({ result: stripHtml(text) });
         }
         errors.push(`Gemini: empty response`);
       } else {
@@ -114,7 +119,7 @@ Example of correct output format:
         let text = data.content?.[0]?.text?.trim();
         if (text) {
           text = text.replace(/^```html\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
-          return NextResponse.json({ result: text });
+          return NextResponse.json({ result: stripHtml(text) });
         }
         errors.push(`Anthropic: empty response`);
       } else {

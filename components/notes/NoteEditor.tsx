@@ -249,7 +249,12 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
 
   const applyAI = () => {
     if (!editorRef.current || !aiResult) return;
-    editorRef.current.innerHTML += `<hr style="margin:16px 0;border:none;border-top:1px solid var(--border)"><p><em style="color:var(--text-muted);font-size:11px">✦ AI:</em></p><p>${aiResult.replace(/\n/g,"<br>")}</p>`;
+    // Strip any stray HTML tags if AI returned HTML instead of plain text
+    const cleanResult = aiResult.startsWith("<") 
+      ? aiResult  // already HTML, use as-is
+      : aiResult.replace(/
+/g, "<br>");
+    editorRef.current.innerHTML += `<hr style="margin:16px 0;border:none;border-top:1px solid var(--border)"><p><em style="color:var(--text-muted);font-size:11px">✦ AI:</em></p><p>${cleanResult}</p>`;
     handleContentChange();
     setAiResult(""); setShowAI(false);
     toast.success("Added to note!");
@@ -352,13 +357,9 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   const closeAll = () => setOpenMenu(null);
 
   const editorBg = localNote.color ? (NOTE_COLOR_MAP[localNote.color] || "var(--surface)") : "var(--surface)";
-  const isColored = !!localNote.color;
-  const colorText = isColored ? "#1a1a1a" : "var(--text)";
-  const colorMuted = isColored ? "#888888" : "var(--text-muted)";
-  const colorSecondary = isColored ? "#555555" : "var(--text-secondary)";
 
   return (
-    <div className="flex flex-col h-full" data-note-colored={isColored ? "true" : undefined} style={{ background: editorBg }}>
+    <div className="flex flex-col h-full" style={{ background: editorBg }}>
 
       {/* Top toolbar */}
       <div className="flex items-center gap-0.5 px-2 py-2 border-b flex-shrink-0"
@@ -374,7 +375,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
             background: saving ? "var(--text-muted)" : "var(--accent, #5DCAA5)",
             transition: "background 0.3s ease",
           }} />
-          <span style={{ fontSize: "11px", color: colorMuted, whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: "11px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
             {saving ? "Saving…" : `Saved ${format(new Date(localNote.updatedAt), "h:mm a")}`}
           </span>
         </div>
@@ -394,7 +395,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
           }}
           title="AI assistant">
           <Sparkles size={12} />
-          AI
+          <span className="hidden sm:inline">AI</span>
         </button>
 
         {/* PIN */}
@@ -606,13 +607,13 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
               placeholder="Untitled"
               rows={1}
               className="w-full resize-none bg-transparent border-none outline-none"
-              style={{ fontFamily:"var(--font-display)", fontSize:"26px", fontWeight:500, color:colorText, lineHeight:"1.25", marginBottom:"6px" }}
+              style={{ fontFamily:"var(--font-display)", fontSize:"26px", fontWeight:500, color:"var(--text)", lineHeight:"1.25", marginBottom:"6px" }}
               onInput={e => { const el=e.currentTarget; el.style.height="auto"; el.style.height=el.scrollHeight+"px"; }}
             />
 
             {/* Date + meta */}
             <div className="flex items-center gap-3 mb-5">
-              <p style={{ fontSize:"11px", color:colorMuted }}>
+              <p style={{ fontSize:"11px", color:"var(--text-muted)" }}>
                 {format(new Date(localNote.updatedAt), "EEEE, MMMM d, yyyy · h:mm a")}
               </p>
               {localNote.isPinned && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📌 Pinned</span>}
@@ -660,7 +661,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
         {/* Footer stats */}
         <div className="hidden md:flex items-center px-10 py-1.5 border-t flex-shrink-0"
           style={{ borderColor: "var(--border)", background: editorBg }}>
-          <span style={{ fontSize: "10px", color: colorMuted }}>
+          <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>
             {wordCount} {wordCount === 1 ? "word" : "words"}
             {editorRef.current?.innerText?.trim()
               ? ` · ${editorRef.current.innerText.trim().length} characters` : ""}
@@ -835,7 +836,7 @@ function AIPanel({ actions, loading, currentAction, result, onAction, onApply, o
         <div className="mt-3 animate-fade">
           <div className="p-3 rounded-xl" style={{ background:"var(--surface-hover)", border:"1px solid var(--border)" }}>
             <p style={{ fontSize:"12px", color:"var(--text-secondary)", lineHeight:"1.6", marginBottom:"10px" }}>
-              {result.slice(0, 300)}{result.length > 300 ? "…" : ""}
+              {result.replace(/<[^>]*>/g, "").slice(0, 300)}{result.replace(/<[^>]*>/g, "").length > 300 ? "…" : ""}
             </p>
             <button onClick={onApply}
               className="w-full py-2 rounded-lg text-xs transition-all hover:opacity-80"
