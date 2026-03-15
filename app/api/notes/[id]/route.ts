@@ -10,7 +10,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const note = await prisma.note.findFirst({
     where: { id, userId: session.user.id },
-    include: { tags: { include: { tag: true } } },
+    include: { tags: { include: { tag: true } }, versions: { orderBy: { createdAt: "desc" }, take: 20 } },
   });
 
   if (!note) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -23,20 +23,37 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id } = await params;
   const body = await req.json();
-  const { tagIds, ...data } = body;
+  const { tagIds, saveVersion, ...data } = body;
+
+  // Auto-calculate word count
+  if (data.content !== undefined) {
+    data.wordCount = data.content.trim() ? data.content.trim().split(/\s+/).length : 0;
+  }
+
+  // Save version snapshot if requested
+  if (saveVersion) {
+    const existing = await prisma.note.findFirst({ where: { id, userId: session.user.id } });
+    if (existing && (existing.content !== data.content || existing.title !== data.title)) {
+      await prisma.noteVersion.create({
+        data: { noteId: id, title: existing.title, content: existing.content },
+      });
+      // Keep only last 20 versions
+      const versions = await prisma.noteVersion.findMany({ where: { noteId: id }, orderBy: { createdAt: "desc" } });
+      if (versions.length > 20) {
+        await prisma.noteVersion.deleteMany({ where: { id: { in: versions.slice(20).map(v => v.id) } } });
+      }
+    }
+  }
 
   const note = await prisma.note.update({
     where: { id, userId: session.user.id },
     data: {
       ...data,
       ...(tagIds !== undefined && {
-        tags: {
-          deleteMany: {},
-          create: tagIds.map((tagId: string) => ({ tagId })),
-        },
+        tags: { deleteMany: {}, create: tagIds.map((tagId: string) => ({ tagId })) },
       }),
     },
-    include: { tags: { include: { tag: true } } },
+    include: { tags: { include: { tag: true } }, versions: { orderBy: { createdAt: "desc" }, take: 20 } },
   });
 
   return NextResponse.json(note);
@@ -47,9 +64,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  await prisma.note.delete({
-    where: { id, userId: session.user.id },
-  });
-
+  await prisma.note.delete({ where: { id, userId: session.user.id } });
   return NextResponse.json({ success: true });
 }

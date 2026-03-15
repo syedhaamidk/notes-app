@@ -5,7 +5,6 @@ import { Sidebar } from "./Sidebar";
 import { NotesList } from "./NotesList";
 import { NoteEditor } from "./NoteEditor";
 import { MobileNav } from "./MobileNav";
-import { Search, Plus, Menu } from "lucide-react";
 import toast from "react-hot-toast";
 
 interface Props {
@@ -29,33 +28,41 @@ export function DashboardLayout({ user }: Props) {
     if (search) params.set("search", search);
     const res = await fetch(`/api/notes?${params}`);
     const data = await res.json();
-    setNotes(data);
+    setNotes(Array.isArray(data) ? data : []);
     setLoading(false);
   }, [filter, selectedTag, search]);
 
   const fetchTags = useCallback(async () => {
     const res = await fetch("/api/tags");
     const data = await res.json();
-    setTags(data);
+    setTags(Array.isArray(data) ? data : []);
   }, []);
 
   useEffect(() => { fetchNotes(); }, [fetchNotes]);
   useEffect(() => { fetchTags(); }, [fetchTags]);
 
+  // Keyboard shortcut: Cmd+N for new note
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "n") { e.preventDefault(); createNote(); }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
   const createNote = async () => {
     const res = await fetch("/api/notes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: "Untitled", content: "" }),
+      body: JSON.stringify({ title: "", content: "" }),
     });
     const note = await res.json();
     setNotes(prev => [note, ...prev]);
     setSelectedNote(note);
     setMobileView("editor");
-    toast.success("Note created");
   };
 
-  const updateNote = async (id: string, data: Partial<Note>) => {
+  const updateNote = async (id: string, data: Partial<Note> & { tagIds?: string[] }) => {
     const res = await fetch(`/api/notes/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -71,7 +78,7 @@ export function DashboardLayout({ user }: Props) {
     await fetch(`/api/notes/${id}`, { method: "DELETE" });
     setNotes(prev => prev.filter(n => n.id !== id));
     if (selectedNote?.id === id) { setSelectedNote(null); setMobileView("list"); }
-    toast.success("Note deleted");
+    toast.success("Note deleted permanently");
   };
 
   const trashNote = async (id: string) => {
@@ -81,77 +88,61 @@ export function DashboardLayout({ user }: Props) {
     toast.success("Moved to trash");
   };
 
-  const handleSelectNote = (note: Note) => {
-    setSelectedNote(note);
-    setMobileView("editor");
+  const duplicateNote = async () => {
+    if (!selectedNote) return;
+    const res = await fetch(`/api/notes/${selectedNote.id}/duplicate`, { method: "POST" });
+    const copy = await res.json();
+    setNotes(prev => [copy, ...prev]);
+    setSelectedNote(copy);
+    toast.success("Note duplicated");
   };
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
-      {/* Sidebar */}
       <Sidebar
         user={user}
         tags={tags}
         filter={filter}
         selectedTag={selectedTag}
+        noteCount={notes.length}
         onFilterChange={(f) => { setFilter(f); setSelectedTag(null); setSelectedNote(null); }}
         onTagSelect={(t) => { setSelectedTag(t); setFilter("all"); setSelectedNote(null); }}
         onTagsChange={fetchTags}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        onNewNote={createNote}
       />
 
-      {/* Main */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Notes list panel */}
+        {/* Notes list */}
         <div className={`flex flex-col border-r ${mobileView === "editor" ? "hidden md:flex" : "flex"} md:flex`}
-          style={{ width: "320px", minWidth: "280px", maxWidth: "380px", borderColor: "var(--border)", background: "var(--surface)" }}>
+          style={{ width: "300px", minWidth: "260px", maxWidth: "360px", borderColor: "var(--border)", background: "var(--surface)", flexShrink: 0 }}>
 
-          {/* Header */}
-          <div className="flex items-center gap-2 px-4 py-4 border-b" style={{ borderColor: "var(--border)" }}>
-            <button className="md:hidden p-2 rounded-lg hover:bg-gray-100"
+          <div className="flex items-center gap-2 px-3 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+            <button className="md:hidden p-1.5 rounded-lg" style={{ color: "var(--text-secondary)" }}
               onClick={() => setSidebarOpen(true)}>
-              <Menu size={18} style={{ color: "var(--text-secondary)" }} />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             </button>
             <div className="flex-1 relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search notes..."
-                className="w-full pl-8 pr-3 py-2 rounded-lg text-sm transition-all"
-                style={{
-                  background: "var(--surface-hover)",
-                  border: "1px solid var(--border-light)",
-                  color: "var(--text)",
-                  fontFamily: "var(--font-body)",
-                  outline: "none",
-                }}
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: "var(--text-muted)" }}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Search…"
+                className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm"
+                style={{ background: "var(--surface-hover)", border: "1px solid var(--border-light)", color: "var(--text)", fontFamily: "var(--font-body)", outline: "none" }}
               />
             </div>
-            <button
-              onClick={createNote}
-              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:opacity-80"
-              style={{ background: "var(--text)", color: "white" }}>
-              <Plus size={16} />
-            </button>
           </div>
 
-          {/* Notes list */}
           <NotesList
-            notes={notes}
-            loading={loading}
-            selectedNote={selectedNote}
-            filter={filter}
-            onSelect={handleSelectNote}
+            notes={notes} loading={loading} selectedNote={selectedNote} filter={filter}
+            onSelect={(note) => { setSelectedNote(note); setMobileView("editor"); }}
             onPin={(id) => updateNote(id, { isPinned: !notes.find(n => n.id === id)?.isPinned })}
-            onTrash={trashNote}
-            onDelete={deleteNote}
+            onTrash={trashNote} onDelete={deleteNote}
             onRestore={(id) => updateNote(id, { isTrashed: false })}
           />
         </div>
 
-        {/* Editor panel */}
+        {/* Editor */}
         <div className={`flex-1 overflow-hidden ${mobileView === "list" ? "hidden md:flex" : "flex"} md:flex flex-col`}>
           {selectedNote ? (
             <NoteEditor
@@ -163,34 +154,27 @@ export function DashboardLayout({ user }: Props) {
               onDelete={() => deleteNote(selectedNote.id)}
               onBack={() => setMobileView("list")}
               onTagsChange={fetchTags}
+              onDuplicate={duplicateNote}
             />
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center gap-3" style={{ color: "var(--text-muted)" }}>
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
+            <div className="flex-1 flex flex-col items-center justify-center gap-3">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
                 style={{ background: "var(--surface-hover)" }}>
-                <span style={{ fontSize: "28px" }}>◈</span>
+                <span style={{ fontFamily: "var(--font-display)", fontSize: "24px", color: "var(--text-muted)" }}>n</span>
               </div>
-              <p style={{ fontFamily: "var(--font-display)", fontSize: "17px", color: "var(--text-secondary)" }}>
-                Select a note to start
-              </p>
-              <p style={{ fontSize: "13px" }}>or create a new one</p>
+              <p style={{ fontFamily: "var(--font-display)", fontSize: "16px", color: "var(--text-secondary)" }}>Select a note</p>
+              <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>or press ⌘N to create one</p>
               <button onClick={createNote}
-                className="mt-2 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all hover:opacity-80"
-                style={{ background: "var(--text)", color: "white", fontFamily: "var(--font-body)" }}>
-                <Plus size={14} /> New note
+                className="mt-1 flex items-center gap-2 px-4 py-2 rounded-xl text-sm transition-all hover:opacity-80"
+                style={{ background: "var(--text)", color: "var(--bg)", fontFamily: "var(--font-body)" }}>
+                + New note
               </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Mobile bottom nav */}
-      <MobileNav
-        mobileView={mobileView}
-        onBack={() => setMobileView("list")}
-        onNew={createNote}
-        hasNote={!!selectedNote}
-      />
+      <MobileNav mobileView={mobileView} onBack={() => setMobileView("list")} onNew={createNote} hasNote={!!selectedNote} />
     </div>
   );
 }

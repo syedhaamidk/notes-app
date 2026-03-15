@@ -13,17 +13,30 @@ export interface NoteTag {
   tag: Tag;
 }
 
+export interface NoteVersion {
+  id: string;
+  noteId: string;
+  title: string;
+  content: string;
+  createdAt: string;
+}
+
 export interface Note {
   id: string;
   title: string;
   content: string;
   emoji?: string | null;
   color?: string | null;
+  coverImage?: string | null;
   isPinned: boolean;
   isArchived: boolean;
   isTrashed: boolean;
+  shareId?: string | null;
+  isShared: boolean;
+  wordCount: number;
   userId: string;
   tags: NoteTag[];
+  versions?: NoteVersion[];
   createdAt: string;
   updatedAt: string;
 }

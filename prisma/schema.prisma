@@ -20,9 +20,7 @@ model Account {
   scope             String?
   id_token          String? @db.Text
   session_state     String?
-
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   @@unique([provider, providerAccountId])
 }
 
@@ -51,24 +49,37 @@ model VerificationToken {
   identifier String
   token      String   @unique
   expires    DateTime
-
   @@unique([identifier, token])
 }
 
 model Note {
-  id          String   @id @default(cuid())
-  title       String   @default("Untitled")
-  content     String   @db.Text @default("")
+  id          String        @id @default(cuid())
+  title       String        @default("Untitled")
+  content     String        @db.Text @default("")
   emoji       String?
   color       String?
-  isPinned    Boolean  @default(false)
-  isArchived  Boolean  @default(false)
-  isTrashed   Boolean  @default(false)
+  coverImage  String?       @db.Text
+  isPinned    Boolean       @default(false)
+  isArchived  Boolean       @default(false)
+  isTrashed   Boolean       @default(false)
+  shareId     String?       @unique @default(cuid())
+  isShared    Boolean       @default(false)
+  wordCount   Int           @default(0)
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   tags        NoteTag[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  versions    NoteVersion[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model NoteVersion {
+  id        String   @id @default(cuid())
+  noteId    String
+  title     String
+  content   String   @db.Text
+  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 }
 
 model Tag {
@@ -79,7 +90,6 @@ model Tag {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   notes     NoteTag[]
   createdAt DateTime  @default(now())
-
   @@unique([name, userId])
 }
 
@@ -88,6 +98,5 @@ model NoteTag {
   tagId  String
   note   Note   @relation(fields: [noteId], references: [id], onDelete: Cascade)
   tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
   @@id([noteId, tagId])
 }

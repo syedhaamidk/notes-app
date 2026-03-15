@@ -12,14 +12,13 @@ export async function GET(req: NextRequest) {
   const tag = searchParams.get("tag");
   const search = searchParams.get("search");
 
-  const where: any = {
-    userId: session.user.id,
-    isTrashed: filter === "trash",
-    isArchived: filter === "archive" ? true : filter === "all" || filter === "pinned" ? undefined : false,
-  };
+  const where: any = { userId: session.user.id };
 
-  if (filter === "pinned") where.isPinned = true;
-  if (filter === "all") { where.isArchived = false; where.isTrashed = false; }
+  if (filter === "trash") { where.isTrashed = true; }
+  else if (filter === "archive") { where.isArchived = true; where.isTrashed = false; }
+  else if (filter === "pinned") { where.isPinned = true; where.isArchived = false; where.isTrashed = false; }
+  else { where.isArchived = false; where.isTrashed = false; }
+
   if (tag) where.tags = { some: { tag: { name: tag } } };
   if (search) where.OR = [
     { title: { contains: search, mode: "insensitive" } },
