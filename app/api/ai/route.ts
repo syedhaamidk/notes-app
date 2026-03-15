@@ -25,6 +25,12 @@ export async function POST(req: NextRequest) {
     continue: `Continue writing from where this left off. Return only the continuation:\n\n${content}`,
     fix: `Fix grammar, spelling, and punctuation. Return only the corrected text:\n\n${content}`,
     cleanup: `Clean up this voice transcription. Fix punctuation, remove filler words like um/uh. Return only the cleaned text:\n\n${content}`,
+    template: `You are a note-taking assistant. Generate a well-structured note based on this description: "${content}".
+
+Return clean HTML suitable for a rich text editor. Use these HTML tags only: <h1>, <h2>, <h3>, <p>, <ul>, <li>, <ol>, <strong>, <em>, <hr>.
+Include realistic placeholder sections with brief instructional text in each section.
+Do NOT include <html>, <body>, <head>, <style> tags. Return only the inner HTML content.
+Make it practical and immediately useful.`,
   };
 
   const prompt = prompts[action];
@@ -39,7 +45,7 @@ export async function POST(req: NextRequest) {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${groqKey}` },
         body: JSON.stringify({
-         model: "llama-3.1-8b-instant",
+          model: "llama-3.1-8b-instant",
           max_tokens: 1000,
           messages: [{ role: "user", content: prompt }],
         }),
