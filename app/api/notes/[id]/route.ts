@@ -51,11 +51,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     // Derive wordCount from content on the server — never trust the client value
     if (content !== undefined) {
-      data.content   = content;
-      data.wordCount = content.replace(/<[^>]*>/g, "").trim()
-        ? content.replace(/<[^>]*>/g, "").trim().split(/\s+/).length
-        : 0;
-    }
+  data.content = content;
+}
 
     const note = await prisma.note.update({
       where: { id, userId: session.user.id },
