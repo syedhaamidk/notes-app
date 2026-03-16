@@ -36,6 +36,27 @@ export function DashboardLayout({ user }: Props) {
     return () => window.removeEventListener("resize", check);
   }, []);
 
+  // Handle browser back button on mobile
+  useEffect(() => {
+    const handlePopState = () => {
+      if (mobileView === "editor") {
+        setMobileView("list");
+        setSelectedNote(null);
+        // Push state again so next back also works
+        window.history.pushState({ view: "list" }, "");
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [mobileView]);
+
+  // Push history state when entering editor on mobile
+  useEffect(() => {
+    if (isMobile && mobileView === "editor") {
+      window.history.pushState({ view: "editor" }, "");
+    }
+  }, [mobileView, isMobile]);
+
   useEffect(() => { filterRef.current = filter; }, [filter]);
   useEffect(() => { selectedTagRef.current = selectedTag; }, [selectedTag]);
   useEffect(() => { searchRef2.current = search; }, [search]);

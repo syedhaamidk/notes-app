@@ -249,8 +249,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
 
   const applyAI = () => {
     if (!editorRef.current || !aiResult) return;
-    // Strip HTML tags - AI sometimes returns HTML for plain text actions
-    const plainResult = aiResult.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    const plainResult = aiResult.replace(/<[^>]*>/g, " ").replace(/  +/g, " ").trim();
     editorRef.current.innerHTML += `<hr style="margin:16px 0;border:none;border-top:1px solid var(--border)"><p><em style="color:var(--text-muted);font-size:11px">✦ AI:</em></p><p>${plainResult}</p>`;
     handleContentChange();
     setAiResult(""); setShowAI(false);
@@ -382,16 +381,14 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
         <button
           onClick={() => { setShowAI(!showAI); closeAll(); }}
           style={{
-            display: "flex", alignItems: "center", gap: "5px",
-            padding: "6px", borderRadius: "20px",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: "28px", height: "28px", borderRadius: "8px",
             background: showAI ? "#5DCAA5" : "rgba(93,202,165,0.15)",
             color: showAI ? "#fff" : "#5DCAA5",
-            border: "none", cursor: "pointer",
-            fontSize: "11px", fontWeight: 500, fontFamily: "var(--font-body)",
-            flexShrink: 0,
+            border: "none", cursor: "pointer", flexShrink: 0,
           }}
           title="AI assistant">
-          <Sparkles size={12} />
+          <Sparkles size={13} />
         </button>
 
         {/* PIN */}
@@ -832,7 +829,7 @@ function AIPanel({ actions, loading, currentAction, result, onAction, onApply, o
         <div className="mt-3 animate-fade">
           <div className="p-3 rounded-xl" style={{ background:"var(--surface-hover)", border:"1px solid var(--border)" }}>
             <p style={{ fontSize:"12px", color:"var(--text-secondary)", lineHeight:"1.6", marginBottom:"10px" }}>
-              {result.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300)}{result.replace(/<[^>]*>/g, "").length > 300 ? "…" : ""}
+              {result.replace(/<[^>]*>/g, " ").replace(/  +/g, " ").trim().slice(0, 300)}{result.length > 300 ? "…" : ""}
             </p>
             <button onClick={onApply}
               className="w-full py-2 rounded-lg text-xs transition-all hover:opacity-80"
