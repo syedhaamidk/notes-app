@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { Providers } from "@/components/Providers";
 import "./globals.css";
-
 export const metadata: Metadata = {
-  title: "Nota — Clean Notes",
+  title: "Nota",
   description: "A minimal, beautiful notes app for clear thinking",
   icons: {
     icon: [
@@ -14,7 +13,6 @@ export const metadata: Metadata = {
     shortcut: "/favicon.svg",
   },
 };
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
