@@ -249,8 +249,9 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
 
   const applyAI = () => {
     if (!editorRef.current || !aiResult) return;
-    const aiHtml = aiResult.includes("<") ? aiResult : aiResult.split("\n").map(l => `<p>${l}</p>`).join("");
-    editorRef.current.innerHTML += `<hr style="margin:16px 0;border:none;border-top:1px solid var(--border)"><p><em style="color:var(--text-muted);font-size:11px">✦ AI:</em></p>${aiHtml}`;
+    // Strip HTML tags - AI sometimes returns HTML for plain text actions
+    const plainResult = aiResult.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    editorRef.current.innerHTML += `<hr style="margin:16px 0;border:none;border-top:1px solid var(--border)"><p><em style="color:var(--text-muted);font-size:11px">✦ AI:</em></p><p>${plainResult}</p>`;
     handleContentChange();
     setAiResult(""); setShowAI(false);
     toast.success("Added to note!");
@@ -382,7 +383,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
           onClick={() => { setShowAI(!showAI); closeAll(); }}
           style={{
             display: "flex", alignItems: "center", gap: "5px",
-            padding: "5px 11px", borderRadius: "20px",
+            padding: "6px", borderRadius: "20px",
             background: showAI ? "#5DCAA5" : "rgba(93,202,165,0.15)",
             color: showAI ? "#fff" : "#5DCAA5",
             border: "none", cursor: "pointer",
@@ -391,7 +392,6 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
           }}
           title="AI assistant">
           <Sparkles size={12} />
-          <span className="hidden sm:inline">AI</span>
         </button>
 
         {/* PIN */}
@@ -832,7 +832,7 @@ function AIPanel({ actions, loading, currentAction, result, onAction, onApply, o
         <div className="mt-3 animate-fade">
           <div className="p-3 rounded-xl" style={{ background:"var(--surface-hover)", border:"1px solid var(--border)" }}>
             <p style={{ fontSize:"12px", color:"var(--text-secondary)", lineHeight:"1.6", marginBottom:"10px" }}>
-              {result.replace(/<[^>]*>/g, "").slice(0, 300)}{result.replace(/<[^>]*>/g, "").length > 300 ? "…" : ""}
+              {result.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300)}{result.replace(/<[^>]*>/g, "").length > 300 ? "…" : ""}
             </p>
             <button onClick={onApply}
               className="w-full py-2 rounded-lg text-xs transition-all hover:opacity-80"
