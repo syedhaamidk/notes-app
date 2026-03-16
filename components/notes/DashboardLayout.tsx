@@ -107,6 +107,60 @@ export function DashboardLayout({ user }: Props) {
   useEffect(() => { fetchNotes(); }, [filter, selectedTag, search]);
   useEffect(() => { fetchTags(); }, []);
 
+  // ── Restore draft written on the login page ────────────────────────────────
+  // Fires when the user lands on /dashboard?new=1 after Google OAuth.
+  // Reads title + body from localStorage, creates the note, opens it,
+  // then clears the keys so a refresh never duplicates it.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") !== "1") return;
+    if (localStorage.getItem("nota_pending_save") !== "true") return;
+
+    const draftTitle = localStorage.getItem("nota_draft_title") || "";
+    const draftBody  = localStorage.getItem("nota_draft_body")  || "";
+
+    // Nothing to save — clean up and bail silently
+    if (!draftTitle.trim() && !draftBody.trim()) {
+      localStorage.removeItem("nota_pending_save");
+      localStorage.removeItem("nota_draft_title");
+      localStorage.removeItem("nota_draft_body");
+      window.history.replaceState({}, "", "/dashboard");
+      return;
+    }
+
+    const saveDraft = async () => {
+      try {
+        const res = await fetch("/api/notes", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ title: draftTitle, content: draftBody }),
+        });
+        if (!res.ok) throw new Error("Failed to save draft");
+        const note = await res.json();
+
+        // Prepend to list and open immediately in the editor
+        setNotes(prev => [note, ...prev]);
+        setSelectedNote(note);
+        setMobileView("editor");
+
+        toast.success("✦ Your note has been saved!");
+      } catch {
+        toast.error("Couldn't save your draft — please try again");
+      } finally {
+        // Always clear to avoid retry loops on refresh
+        localStorage.removeItem("nota_pending_save");
+        localStorage.removeItem("nota_draft_title");
+        localStorage.removeItem("nota_draft_body");
+        window.history.replaceState({}, "", "/dashboard");
+      }
+    };
+
+    // Small delay lets the initial fetchNotes settle first so the
+    // new note appears correctly at position 0 in the list.
+    const timer = setTimeout(saveDraft, 600);
+    return () => clearTimeout(timer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (window.innerWidth >= 768) {
       const stored = localStorage.getItem("sidebarCollapsed");
