@@ -371,11 +371,8 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
             background: saving ? "var(--text-muted)" : "var(--accent, #5DCAA5)",
             transition: "background 0.3s ease",
           }} />
-          <span className="hidden sm:inline" style={{ fontSize: "10px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: "10px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
             {saving ? "Saving…" : `Saved ${format(new Date(localNote.updatedAt), "h:mm a")}`}
-          </span>
-          <span className="sm:hidden" style={{ fontSize: "9px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-            {saving ? "…" : format(new Date(localNote.updatedAt), "h:mm a")}
           </span>
         </div>
         <div className="flex-1" />
