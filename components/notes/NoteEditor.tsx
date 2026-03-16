@@ -61,6 +61,9 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   const [wordCount, setWordCount] = useState(note.wordCount || 0);
   const [localNote, setLocalNote] = useState(note);
   const [floatingToolbar, setFloatingToolbar] = useState<{ el: HTMLElement; type: "image"|"table"; x: number; y: number } | null>(null);
+  const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
+  const [imgOverlay, setImgOverlay] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const imgOverlayRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
 
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimeout = useRef<NodeJS.Timeout>();
@@ -268,11 +271,16 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     const target = e.target as HTMLElement;
     const isImg = target.tagName === "IMG";
     const tbl = target.closest("table") as HTMLElement | null;
-    if (isImg || tbl) {
+    if (isImg) {
       e.preventDefault();
-      const el = isImg ? target : tbl!;
-      const rect = el.getBoundingClientRect();
-      setFloatingToolbar({ el, type: isImg ? "image" : "table", x: rect.left, y: rect.top });
+      const img = target as HTMLImageElement;
+      const rect = img.getBoundingClientRect();
+      setSelectedImg(img);
+      setImgOverlay({ x: rect.left, y: rect.top, w: rect.width, h: rect.height });
+    } else if (tbl) {
+      e.preventDefault();
+      const rect = tbl.getBoundingClientRect();
+      setFloatingToolbar({ el: tbl, type: "table", x: rect.left, y: rect.top });
     }
   };
 
@@ -280,14 +288,82 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     const target = e.target as HTMLElement;
     const isImg = target.tagName === "IMG";
     const tbl = target.closest("table") as HTMLElement | null;
-    if (isImg || tbl) {
-      const el = isImg ? target : tbl!;
-      const rect = el.getBoundingClientRect();
-      setFloatingToolbar({ el, type: isImg ? "image" : "table", x: rect.left, y: rect.top });
+    if (isImg) {
+      const img = target as HTMLImageElement;
+      const rect = img.getBoundingClientRect();
+      setSelectedImg(img);
+      setImgOverlay({ x: rect.left, y: rect.top, w: rect.width, h: rect.height });
+      imgOverlayRef.current = { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
+      setFloatingToolbar(null);
+    } else if (tbl) {
+      const rect = tbl.getBoundingClientRect();
+      setFloatingToolbar({ el: tbl, type: "table", x: rect.left, y: rect.top });
+      setSelectedImg(null); setImgOverlay(null);
     } else {
       setFloatingToolbar(null);
+      setSelectedImg(null); setImgOverlay(null);
     }
     closeAll();
+  };
+
+  const startImgDrag = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!selectedImg || !imgOverlay) return;
+    const startX = e.clientX - imgOverlay.x;
+    const startY = e.clientY - imgOverlay.y;
+    const onMove = (ev: MouseEvent) => {
+      const nx = ev.clientX - startX;
+      const ny = ev.clientY - startY;
+      setImgOverlay(o => o ? { ...o, x: nx, y: ny } : o);
+      imgOverlayRef.current = { ...imgOverlayRef.current!, x: nx, y: ny };
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      if (!selectedImg || !imgOverlayRef.current) return;
+      // Apply position as margin offsets — convert to float style
+      const editorRect = editorRef.current!.getBoundingClientRect();
+      const relX = imgOverlayRef.current.x - editorRect.left;
+      selectedImg.style.marginLeft = `${relX}px`;
+      handleContentChange();
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+
+  const startImgResize = (e: React.MouseEvent, corner: string) => {
+    e.preventDefault(); e.stopPropagation();
+    if (!selectedImg || !imgOverlay) return;
+    const startX = e.clientX;
+    const startW = imgOverlay.w;
+    const startH = imgOverlay.h;
+    const aspect = startW / startH;
+    const onMove = (ev: MouseEvent) => {
+      const dx = ev.clientX - startX;
+      const nw = Math.max(80, startW + (corner.includes("right") ? dx : -dx));
+      const nh = nw / aspect;
+      setImgOverlay(o => o ? { ...o, w: nw, h: nh } : o);
+      imgOverlayRef.current = { ...imgOverlayRef.current!, w: nw, h: nh };
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      if (!selectedImg || !imgOverlayRef.current) return;
+      selectedImg.style.width = `${imgOverlayRef.current.w}px`;
+      selectedImg.style.height = "auto";
+      const rect = selectedImg.getBoundingClientRect();
+      setImgOverlay({ x: rect.left, y: rect.top, w: rect.width, h: rect.height });
+      handleContentChange();
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+
+  const deleteSelectedImg = () => {
+    if (!selectedImg) return;
+    selectedImg.parentNode?.removeChild(selectedImg);
+    setSelectedImg(null); setImgOverlay(null);
+    handleContentChange();
   };
 
   const floatingDelete = () => {
@@ -371,7 +447,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
             background: saving ? "var(--text-muted)" : "var(--accent, #5DCAA5)",
             transition: "background 0.3s ease",
           }} />
-          <span style={{ fontSize: "10px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: "11px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
             {saving ? "Saving…" : `Saved ${format(new Date(localNote.updatedAt), "h:mm a")}`}
           </span>
         </div>
@@ -685,6 +761,50 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
             </div>
             <AIPanel actions={AI_ACTIONS} loading={aiLoading} currentAction={aiAction}
               result={aiResult} onAction={handleAI} onApply={applyAI} onClose={() => setShowAI(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* Image resize/drag overlay */}
+      {selectedImg && imgOverlay && (
+        <div
+          style={{
+            position: "fixed",
+            left: imgOverlay.x - 2,
+            top: imgOverlay.y - 2,
+            width: imgOverlay.w + 4,
+            height: imgOverlay.h + 4,
+            zIndex: 90,
+            pointerEvents: "none",
+          }}>
+          {/* Selection border */}
+          <div style={{ position:"absolute", inset:0, border:"2px solid #5DCAA5", borderRadius:"2px", pointerEvents:"none" }} />
+
+          {/* Drag handle - top bar */}
+          <div
+            onMouseDown={startImgDrag}
+            style={{ position:"absolute", top:0, left:0, right:0, height:"24px", cursor:"move", pointerEvents:"all", background:"rgba(93,202,165,0.15)", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 6px" }}>
+            <span style={{ fontSize:"10px", color:"#5DCAA5", fontFamily:"var(--font-body)", userSelect:"none" }}>⠿ drag</span>
+            <button
+              onMouseDown={e => { e.stopPropagation(); deleteSelectedImg(); }}
+              style={{ background:"#dc2626", border:"none", borderRadius:"4px", color:"white", fontSize:"10px", padding:"2px 6px", cursor:"pointer", pointerEvents:"all" }}>
+              ✕
+            </button>
+          </div>
+
+          {/* Resize handles */}
+          {[
+            { corner:"bottom-right", style:{ bottom:-5, right:-5, cursor:"se-resize" } },
+            { corner:"bottom-left",  style:{ bottom:-5, left:-5,  cursor:"sw-resize" } },
+          ].map(({ corner, style }) => (
+            <div key={corner}
+              onMouseDown={e => startImgResize(e, corner)}
+              style={{ position:"absolute", width:"10px", height:"10px", background:"#5DCAA5", borderRadius:"2px", pointerEvents:"all", ...style }} />
+          ))}
+
+          {/* Size label */}
+          <div style={{ position:"absolute", bottom:-20, left:0, fontSize:"10px", color:"#5DCAA5", fontFamily:"var(--font-body)", whiteSpace:"nowrap", pointerEvents:"none" }}>
+            {Math.round(imgOverlay.w)} × {Math.round(imgOverlay.h)}
           </div>
         </div>
       )}
