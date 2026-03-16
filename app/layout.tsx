@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Providers } from "@/components/Providers";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: "Nota",
+  title: "nota",
   description: "A minimal, beautiful notes app for clear thinking",
   icons: {
     icon: [
