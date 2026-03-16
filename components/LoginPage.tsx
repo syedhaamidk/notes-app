@@ -121,8 +121,8 @@ export function LoginPage() {
 
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", marginBottom: isMobile ? "36px" : "44px" }}>
-          <div style={{ width: "40px", height: "40px", background: "#ffffff", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(0,0,0,0.4)" }}>
-            <span style={{ fontFamily: "Georgia,serif", fontSize: "20px", color: "#0e0d0b", fontWeight: 600 }}>n</span>
+          <div style={{ width: "40px", height: "40px", background: "#1a1916", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(0,0,0,0.4)" }}>
+            <span style={{ fontFamily: "Georgia,serif", fontSize: "20px", color: "#ffffff", fontWeight: 500, fontStyle: "italic" }}>n</span>
           </div>
           <span style={{ fontFamily: "Georgia,serif", fontSize: "24px", color: "#ffffff", letterSpacing: "-0.02em" }}>nota</span>
         </div>
