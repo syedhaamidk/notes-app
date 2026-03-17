@@ -58,7 +58,19 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
     const [hovered, setHovered] = useState(false);
     const isSelected = selectedNote?.id === note.id;
     const bg = note.color ? (NOTE_COLORS[note.color] || "var(--surface)") : "var(--surface)";
-    const rawPreview = (() => { let h = note.content || ""; h = h.replace(/<input[^>]*checked[^>]*>/gi, "✓ "); h = h.replace(/<input[^>]*type="checkbox"[^>]*>/gi, "○ "); h = h.replace(/<[^>]*>/g, " ").replace(/  +/g, " ").trim(); return h.slice(0, 80); })();
+    const isTodoNote = (note.content || "").includes('class="todo-item"') || (note.content || "").includes('class="todo-check"');
+    const todoItems: { checked: boolean; text: string }[] = [];
+    if (isTodoNote) {
+      const itemRegex = /<div class="todo-item">([\s\S]*?)<\/div>/g;
+      let m;
+      const html = note.content || "";
+      while ((m = itemRegex.exec(html)) !== null) {
+        const checked = m[1].includes('checked');
+        const text = m[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        if (text) todoItems.push({ checked, text });
+      }
+    }
+    const rawPreview = isTodoNote ? "" : (() => { let h = note.content || ""; h = h.replace(/<[^>]*>/g, " ").replace(/  +/g, " ").trim(); return h.slice(0, 80); })();
 
     const handlePin = (e: React.MouseEvent) => {
       e.preventDefault();
@@ -119,7 +131,23 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
                   style={{ fontFamily: "var(--font-display)", fontSize: "13.5px", color: "var(--text)" }}
                   dangerouslySetInnerHTML={{ __html: highlight(note.title || "Untitled", search) }} />
               </div>
-              {rawPreview ? (
+              {isTodoNote && todoItems.length > 0 ? (
+                <div style={{ marginBottom: "2px" }}>
+                  {todoItems.slice(0, 3).map((item, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: "5px", marginBottom: "1px" }}>
+                      <svg width="11" height="11" viewBox="0 0 11 11" style={{ flexShrink: 0 }}>
+                        {item.checked
+                          ? <><circle cx="5.5" cy="5.5" r="5" fill="var(--text)"/><polyline points="3 5.5 4.8 7.3 8 3.5" stroke="var(--bg)" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round"/></>
+                          : <circle cx="5.5" cy="5.5" r="5" fill="none" stroke="var(--border)" strokeWidth="1.4"/>
+                        }
+                      </svg>
+                      <span style={{ fontSize: "11px", color: item.checked ? "var(--text-muted)" : "var(--text-secondary)", textDecoration: item.checked ? "line-through" : "none", opacity: item.checked ? 0.5 : 1, lineHeight: "1.4", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "160px" }}>
+                        {item.text}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : rawPreview ? (
                 <p className="line-clamp-2"
                   style={{ color: "var(--text-secondary)", fontSize: "12px", lineHeight: "1.5" }}
                   dangerouslySetInnerHTML={{ __html: highlight(rawPreview, search) }} />

@@ -287,40 +287,8 @@ body {
 /* ===== TO-DO LIST ===== */
 .todo-group {
   margin: 10px 0;
-  border-radius: 10px;
-  overflow: visible;
-}
-
-.todo-progress-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 4px 8px;
-}
-
-.todo-progress-bar {
-  flex: 1;
-  height: 2px;
-  background: var(--border-light);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.todo-progress-fill {
-  height: 100%;
-  background: var(--text);
-  opacity: 0.6;
-  border-radius: 2px;
-  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.todo-counter {
-  font-family: var(--font-body);
-  font-size: 10px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  min-width: 32px;
-  text-align: right;
+  padding: 2px 0;
+  counter-reset: todo-total 0 todo-done 0;
 }
 
 .todo-item {
@@ -330,19 +298,22 @@ body {
   padding: 7px 4px;
   border-radius: 8px;
   transition: background 0.12s ease;
+  counter-increment: todo-total;
 }
 
 .todo-item:hover {
   background: var(--surface-hover);
 }
 
-/* Checkbox wrapper — intercepts clicks, doesn't propagate to text */
+/* Checkbox wrapper - separate click target from text */
 .todo-check-wrap {
   display: flex;
   align-items: center;
   flex-shrink: 0;
   cursor: pointer;
-  padding: 2px;
+  width: 24px;
+  height: 24px;
+  justify-content: center;
 }
 
 .todo-check {
@@ -358,12 +329,11 @@ body {
   transition: all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
   position: relative;
   flex-shrink: 0;
-  pointer-events: none;
+  pointer-events: all;
 }
 
 .todo-check-wrap:hover .todo-check {
   border-color: var(--text-secondary);
-  background: var(--surface-hover);
   transform: scale(1.1);
 }
 
@@ -396,11 +366,9 @@ body {
   word-break: break-word;
   letter-spacing: -0.01em;
   cursor: text;
-  -webkit-user-modify: read-write;
-  user-modify: read-write;
+  pointer-events: all;
 }
 
-/* Checked state — target sibling text via parent */
 .todo-item:has(.todo-check:checked) .todo-text {
   text-decoration: line-through;
   text-decoration-color: var(--border);
@@ -409,28 +377,20 @@ body {
 }
 
 /* Dark mode */
-[data-theme="dark"] .todo-check:checked {
-  background: var(--text);
-  border-color: var(--text);
-}
-
 [data-theme="dark"] .todo-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255,255,255,0.04);
 }
 
-/* Colored note */
+/* Colored notes */
 [data-note-colored="true"] .todo-check {
   border-color: rgba(0,0,0,0.2);
 }
-
 [data-note-colored="true"] .todo-item:hover {
   background: rgba(0,0,0,0.04);
 }
-
 [data-note-colored="true"] .todo-text {
   color: #1a1a1a;
 }
-
 [data-note-colored="true"] .todo-item:has(.todo-check:checked) .todo-text {
   color: #888;
 }

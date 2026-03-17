@@ -148,42 +148,20 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   };
 
   const insertTodo = () => {
-    const makeItem = (text: string) =>
+    const item = (text: string) =>
       `<div class="todo-item"><span class="todo-check-wrap"><input type="checkbox" class="todo-check" /></span><span class="todo-text" contenteditable="true">${text}</span></div>`;
-    const html = [
-      `<div class="todo-group">`,
-      `<div class="todo-progress-row"><div class="todo-progress-bar"><div class="todo-progress-fill" style="width:0%"></div></div><span class="todo-counter">0 / 3</span></div>`,
-      makeItem("Task one"),
-      makeItem("Task two"),
-      makeItem("Task three"),
-      `</div><p><br></p>`,
-    ].join("");
+    const html = `<div class="todo-group">${item("Task one")}${item("Task two")}${item("Task three")}</div><p><br></p>`;
     editorRef.current?.focus();
     document.execCommand("insertHTML", false, html);
-    setTimeout(() => updateTodoProgress(), 50);
     handleContentChange();
   };
 
-  const updateTodoProgress = useCallback(() => {
-    if (!editorRef.current) return;
-    editorRef.current.querySelectorAll(".todo-group").forEach(group => {
-      const checks = Array.from(group.querySelectorAll<HTMLInputElement>(".todo-check"));
-      const total = checks.length;
-      const done = checks.filter(c => c.checked).length;
-      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-      const fill = group.querySelector<HTMLElement>(".todo-progress-fill");
-      const counter = group.querySelector<HTMLElement>(".todo-counter");
-      if (fill) fill.style.width = `${pct}%`;
-      if (counter) counter.textContent = `${done} / ${total}`;
-    });
-  }, []);
-
   const handleCheckboxClick = useCallback((e: React.MouseEvent) => {
-    const target = e.target as HTMLElement;
+    const target = e.target as HTMLInputElement;
     if (target.classList.contains("todo-check")) {
-      setTimeout(() => { updateTodoProgress(); handleContentChange(); }, 20);
+      setTimeout(() => handleContentChange(), 20);
     }
-  }, [updateTodoProgress, handleContentChange]);
+  }, [handleContentChange]);
 
   const handleImageUpload = () => {
     const input = document.createElement("input");
