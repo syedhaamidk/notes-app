@@ -285,45 +285,83 @@ body {
 }
 
 /* ===== TO-DO LIST ===== */
+.todo-group {
+  margin: 10px 0;
+  border-radius: 10px;
+  overflow: visible;
+}
+
+.todo-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px 8px;
+}
+
+.todo-progress-bar {
+  flex: 1;
+  height: 2px;
+  background: var(--border-light);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.todo-progress-fill {
+  height: 100%;
+  background: var(--text);
+  opacity: 0.6;
+  border-radius: 2px;
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.todo-counter {
+  font-family: var(--font-body);
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  min-width: 32px;
+  text-align: right;
+}
+
 .todo-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 10px;
+  gap: 11px;
+  padding: 7px 4px;
   border-radius: 8px;
-  margin: 1px 0;
-  transition: background 0.15s ease;
+  transition: background 0.12s ease;
 }
 
 .todo-item:hover {
   background: var(--surface-hover);
 }
 
-.todo-label {
+/* Checkbox wrapper — intercepts clicks, doesn't propagate to text */
+.todo-check-wrap {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-shrink: 0;
   cursor: pointer;
-  width: 100%;
-  user-select: none;
+  padding: 2px;
 }
 
 .todo-check {
   appearance: none;
   -webkit-appearance: none;
-  width: 19px;
-  height: 19px;
-  min-width: 19px;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
   border: 1.5px solid var(--border);
   border-radius: 50%;
   cursor: pointer;
   background: transparent;
-  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
   position: relative;
   flex-shrink: 0;
+  pointer-events: none;
 }
 
-.todo-check:hover {
+.todo-check-wrap:hover .todo-check {
   border-color: var(--text-secondary);
   background: var(--surface-hover);
   transform: scale(1.1);
@@ -332,7 +370,6 @@ body {
 .todo-check:checked {
   background: var(--text);
   border-color: var(--text);
-  transform: scale(1);
 }
 
 .todo-check:checked::after {
@@ -354,22 +391,21 @@ body {
   line-height: 1.65;
   color: var(--text);
   flex: 1;
-  transition: color 0.2s ease, opacity 0.2s ease;
   outline: none;
+  min-width: 0;
   word-break: break-word;
   letter-spacing: -0.01em;
+  cursor: text;
+  -webkit-user-modify: read-write;
+  user-modify: read-write;
 }
 
-.todo-check:checked ~ .todo-text {
+/* Checked state — target sibling text via parent */
+.todo-item:has(.todo-check:checked) .todo-text {
   text-decoration: line-through;
   text-decoration-color: var(--border);
   color: var(--text-muted);
-  opacity: 0.4;
-}
-
-/* Separator between checked and unchecked — handled via JS below */
-.todo-item + .todo-item {
-  margin-top: 0;
+  opacity: 0.45;
 }
 
 /* Dark mode */
@@ -382,56 +418,19 @@ body {
   background: rgba(255, 255, 255, 0.04);
 }
 
-/* Colored note backgrounds */
+/* Colored note */
 [data-note-colored="true"] .todo-check {
-  border-color: rgba(0, 0, 0, 0.2);
+  border-color: rgba(0,0,0,0.2);
 }
 
 [data-note-colored="true"] .todo-item:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(0,0,0,0.04);
 }
 
 [data-note-colored="true"] .todo-text {
   color: #1a1a1a;
 }
 
-[data-note-colored="true"] .todo-check:checked ~ .todo-text {
-  color: #888888;
-}
-
-/* Todo progress bar */
-.todo-group {
-  margin: 8px 0;
-  padding: 4px 0;
-}
-
-.todo-progress-bar {
-  height: 3px;
-  background: var(--border-light);
-  border-radius: 2px;
-  overflow: hidden;
-  margin: 0 10px 6px;
-}
-
-.todo-progress-fill {
-  height: 100%;
-  background: var(--text);
-  border-radius: 2px;
-  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  opacity: 0.7;
-}
-
-.todo-progress-label {
-  display: flex;
-  align-items: center;
-  padding: 0 10px 8px;
-  font-family: var(--font-body);
-  font-size: 10px;
-  color: var(--text-muted);
-  letter-spacing: 0.05em;
-  gap: 2px;
-}
-
-.todo-sep {
-  opacity: 0.4;
+[data-note-colored="true"] .todo-item:has(.todo-check:checked) .todo-text {
+  color: #888;
 }

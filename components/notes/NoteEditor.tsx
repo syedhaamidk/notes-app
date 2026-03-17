@@ -148,53 +148,42 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   };
 
   const insertTodo = () => {
-    const id = `todo-${Date.now()}`;
+    const makeItem = (text: string) =>
+      `<div class="todo-item"><span class="todo-check-wrap"><input type="checkbox" class="todo-check" /></span><span class="todo-text" contenteditable="true">${text}</span></div>`;
     const html = [
-      `<div class="todo-group" data-todo-group="${id}">`,
-      `<div class="todo-progress-bar"><div class="todo-progress-fill" style="width:0%"></div></div>`,
-      `<div class="todo-progress-label"><span class="todo-done-count">0</span><span class="todo-sep"> / </span><span class="todo-total-count">3</span><span class="todo-progress-pct" style="margin-left:auto;opacity:0.5">0%</span></div>`,
-      `<div class="todo-item"><label class="todo-label"><input type="checkbox" class="todo-check" /><span class="todo-text" contenteditable="true">Task one</span></label></div>`,
-      `<div class="todo-item"><label class="todo-label"><input type="checkbox" class="todo-check" /><span class="todo-text" contenteditable="true">Task two</span></label></div>`,
-      `<div class="todo-item"><label class="todo-label"><input type="checkbox" class="todo-check" /><span class="todo-text" contenteditable="true">Task three</span></label></div>`,
-      `</div>`,
-      `<p><br></p>`,
+      `<div class="todo-group">`,
+      `<div class="todo-progress-row"><div class="todo-progress-bar"><div class="todo-progress-fill" style="width:0%"></div></div><span class="todo-counter">0 / 3</span></div>`,
+      makeItem("Task one"),
+      makeItem("Task two"),
+      makeItem("Task three"),
+      `</div><p><br></p>`,
     ].join("");
     editorRef.current?.focus();
     document.execCommand("insertHTML", false, html);
-    // Update progress after insert
     setTimeout(() => updateTodoProgress(), 50);
     handleContentChange();
   };
 
-  const updateTodoProgress = () => {
+  const updateTodoProgress = useCallback(() => {
     if (!editorRef.current) return;
     editorRef.current.querySelectorAll(".todo-group").forEach(group => {
-      const checks = group.querySelectorAll(".todo-check") as NodeListOf<HTMLInputElement>;
+      const checks = Array.from(group.querySelectorAll<HTMLInputElement>(".todo-check"));
       const total = checks.length;
-      const done = Array.from(checks).filter(c => c.checked).length;
+      const done = checks.filter(c => c.checked).length;
       const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-      const fill = group.querySelector(".todo-progress-fill") as HTMLElement;
-      const doneEl = group.querySelector(".todo-done-count");
-      const totalEl = group.querySelector(".todo-total-count");
-      const pctEl = group.querySelector(".todo-progress-pct");
+      const fill = group.querySelector<HTMLElement>(".todo-progress-fill");
+      const counter = group.querySelector<HTMLElement>(".todo-counter");
       if (fill) fill.style.width = `${pct}%`;
-      if (doneEl) doneEl.textContent = String(done);
-      if (totalEl) totalEl.textContent = String(total);
-      if (pctEl) pctEl.textContent = `${pct}%`;
+      if (counter) counter.textContent = `${done} / ${total}`;
     });
-  };
+  }, []);
 
-  const handleEditorInput = useCallback(() => {
-    // Handle checkbox clicks saving state
-    handleContentChange();
-  }, [handleContentChange]);
-
-  const handleEditorMouseDown = (e: React.MouseEvent) => {
-    const target = e.target as HTMLInputElement;
-    if (target.classList.contains("todo-check") || target.type === "checkbox") {
-      setTimeout(() => { updateTodoProgress(); handleContentChange(); }, 50);
+  const handleCheckboxClick = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.classList.contains("todo-check")) {
+      setTimeout(() => { updateTodoProgress(); handleContentChange(); }, 20);
     }
-  };
+  }, [updateTodoProgress, handleContentChange]);
 
   const handleImageUpload = () => {
     const input = document.createElement("input");
@@ -672,9 +661,8 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
               className="rich-editor"
               data-placeholder="Start writing…"
               onInput={handleContentChange}
-              onMouseDown={handleEditorMouseDown}
               onContextMenu={handleContextMenu}
-              onClick={handleEditorClick}
+              onClick={(e) => { handleEditorClick(e); handleCheckboxClick(e); }}
               onPaste={e => {
                 e.preventDefault();
                 const html = e.clipboardData.getData("text/html");

@@ -58,11 +58,18 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
     const [hovered, setHovered] = useState(false);
     const isSelected = selectedNote?.id === note.id;
     const bg = note.color ? (NOTE_COLORS[note.color] || "var(--surface)") : "var(--surface)";
-    const isColored = !!note.color;
-    const textColor = isColored ? "#1a1a1a" : "var(--text)";
-    const textSecondary = isColored ? "#555555" : "var(--text-secondary)";
-    const textMuted = isColored ? "#888888" : "var(--text-muted)";
-    const rawPreview = (note.content || "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 80);
+    const rawPreview = (() => {
+      let html = note.content || "";
+      // Remove progress bar/counter elements entirely
+      html = html.replace(/<div class="todo-progress-row"[^>]*>.*?<\/div>/gs, "");
+      html = html.replace(/<div class="todo-progress[^"]*"[^>]*>.*?<\/div>/gs, "");
+      // Replace checkboxes with a clean symbol
+      html = html.replace(/<input[^>]*type="checkbox"[^>]*checked[^>]*>/gi, "✓ ");
+      html = html.replace(/<input[^>]*type="checkbox"[^>]*>/gi, "○ ");
+      // Strip remaining tags
+      html = html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+      return html.slice(0, 80);
+    })();
 
     const handlePin = (e: React.MouseEvent) => {
       e.preventDefault();
@@ -117,23 +124,23 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 mb-0.5">
                 {note.isPinned && (
-                  <Pin size={9} style={{ color: textMuted, flexShrink: 0 }} />
+                  <Pin size={9} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
                 )}
                 <p className="font-medium truncate"
-                  style={{ fontFamily: "var(--font-display)", fontSize: "13.5px", color: textColor }}
+                  style={{ fontFamily: "var(--font-display)", fontSize: "13.5px", color: "var(--text)" }}
                   dangerouslySetInnerHTML={{ __html: highlight(note.title || "Untitled", search) }} />
               </div>
               {rawPreview ? (
                 <p className="line-clamp-2"
-                  style={{ color: textSecondary, fontSize: "12px", lineHeight: "1.5" }}
+                  style={{ color: "var(--text-secondary)", fontSize: "12px", lineHeight: "1.5" }}
                   dangerouslySetInnerHTML={{ __html: highlight(rawPreview, search) }} />
               ) : (
-                <p style={{ color: textMuted, fontSize: "12px", lineHeight: "1.5", fontStyle: "italic", opacity: 0.5 }}>
+                <p style={{ color: "var(--text-muted)", fontSize: "12px", lineHeight: "1.5", fontStyle: "italic", opacity: 0.5 }}>
                   Start writing…
                 </p>
               )}
               <div className="flex items-center gap-1.5 mt-1.5">
-                <span style={{ fontSize: "10px", color: textMuted }}>
+                <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>
                   {format(new Date(note.updatedAt), "MMM d · h:mm a")}
                 </span>
                 {(note.tags || []).slice(0, 2).map(nt => (
@@ -143,7 +150,7 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
                   </span>
                 ))}
                 {note.wordCount > 0 && (
-                  <span style={{ fontSize: "10px", color: textMuted, marginLeft: "auto" }}>
+                  <span style={{ fontSize: "10px", color: "var(--text-muted)", marginLeft: "auto" }}>
                     {note.wordCount}w
                   </span>
                 )}
