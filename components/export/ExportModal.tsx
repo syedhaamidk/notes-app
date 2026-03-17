@@ -111,7 +111,24 @@ export function ExportModal({ note, onClose }: Props) {
   const exportVisual = async (fmt: "png" | "pdf") => {
     const { default: html2canvas } = await import("html2canvas");
     if (!previewRef.current) return;
-    const canvas = await html2canvas(previewRef.current, { scale: 2, useCORS: true, backgroundColor: null });
+    const canvas = await html2canvas(previewRef.current, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      ignoreElements: (el) => el.classList?.contains("todo-progress-bar") && false,
+      onclone: (doc) => {
+        // Force white backgrounds and dark text on all elements in clone
+        doc.querySelectorAll("[style]").forEach((el: Element) => {
+          const h = el as HTMLElement;
+          const bg = h.style.backgroundColor || h.style.background;
+          const isDark = bg && (bg.includes("0a0a0a") || bg.includes("0e0d0b") || bg.includes("1a1916") || bg.includes("111111") || bg.includes("rgb(10") || bg.includes("rgb(0, 0, 0)"));
+          if (isDark) { h.style.backgroundColor = ""; h.style.background = ""; }
+          const col = h.style.color;
+          const isLightText = col && (col.includes("255,255,255") || col.includes("#fff") || col.includes("#e8e4dc") || col.includes("#c8c4bc"));
+          if (isLightText) { h.style.color = "#1a1a1a"; }
+        });
+      }
+    });
     if (fmt === "png") {
       canvas.toBlob(blob => { if (blob) downloadBlob(blob, `${note.title || "note"}.png`); });
     } else {
@@ -417,7 +434,16 @@ const ExportPreview = React.forwardRef<HTMLDivElement, {
   customBg: string|null; showWatermark: boolean; overrideContent?: string;
 }>(({ note, template, layoutTemplate, customBg, showWatermark, overrideContent }, ref) => {
   const date = dateFns(new Date(note.updatedAt), "MMMM d, yyyy");
-  const contentHtml = overrideContent || note.content || "";
+  // Strip dark editor inline styles so content renders cleanly on light export backgrounds
+  const rawHtml = overrideContent || note.content || "";
+  const contentHtml = rawHtml
+    .replace(/style="[^"]*"/g, (match) => {
+      return match
+        .replace(/background(-color)?:\s*[^;"]*(;|(?="))/g, "")
+        .replace(/color:\s*(?:rgb\(10,\s*10,\s*10\)|rgb\(0,\s*0,\s*0\)|#0a0a0a|#000000|#111111|#0e0d0b|#1a1916)[^;"]*(;|(?="))/g, "")
+        .replace(/font-family:\s*[^;"]*(;|(?="))/g, "")
+        .replace(/style=""/, "");
+    });
 
   const styles: Record<Template, React.CSSProperties> = {
     minimal:  { background:"#ffffff",                                         padding:"56px 52px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#1a1916", position:"relative", overflow:"hidden" },
