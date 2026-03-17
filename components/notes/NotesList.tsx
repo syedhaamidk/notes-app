@@ -58,18 +58,7 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
     const [hovered, setHovered] = useState(false);
     const isSelected = selectedNote?.id === note.id;
     const bg = note.color ? (NOTE_COLORS[note.color] || "var(--surface)") : "var(--surface)";
-    const rawPreview = (() => {
-      let html = note.content || "";
-      // Remove progress bar/counter elements entirely
-      html = html.replace(/<div class="todo-progress-row"[^>]*>.*?<\/div>/gs, "");
-      html = html.replace(/<div class="todo-progress[^"]*"[^>]*>.*?<\/div>/gs, "");
-      // Replace checkboxes with a clean symbol
-      html = html.replace(/<input[^>]*type="checkbox"[^>]*checked[^>]*>/gi, "✓ ");
-      html = html.replace(/<input[^>]*type="checkbox"[^>]*>/gi, "○ ");
-      // Strip remaining tags
-      html = html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-      return html.slice(0, 80);
-    })();
+    const rawPreview = (() => { let h = note.content || ""; h = h.replace(/<input[^>]*checked[^>]*>/gi, "✓ "); h = h.replace(/<input[^>]*type="checkbox"[^>]*>/gi, "○ "); h = h.replace(/<[^>]*>/g, " ").replace(/  +/g, " ").trim(); return h.slice(0, 80); })();
 
     const handlePin = (e: React.MouseEvent) => {
       e.preventDefault();
