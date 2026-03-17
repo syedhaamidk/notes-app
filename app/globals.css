@@ -284,47 +284,154 @@ body {
   }
 }
 
-/* ===== COLORED NOTE TEXT OVERRIDES ===== */
-/* When a note has a color, force dark text regardless of theme */
-[data-note-colored="true"] {
-  --text: #1a1a1a !important;
-  --text-secondary: #555555 !important;
-  --text-muted: #888888 !important;
-  --border: #d0d0d0 !important;
-  --border-light: #e0e0e0 !important;
-  --surface-hover: rgba(0,0,0,0.05) !important;
-  --accent: #1a1a1a !important;
-  --accent-light: rgba(0,0,0,0.06) !important;
+/* ===== TO-DO LIST ===== */
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin: 1px 0;
+  transition: background 0.15s ease;
 }
 
-[data-note-colored="true"] .rich-editor {
-  color: #1a1a1a !important;
+.todo-item:hover {
+  background: var(--surface-hover);
 }
 
-[data-note-colored="true"] .rich-editor blockquote {
-  color: #555555 !important;
-  border-left-color: #bbbbbb !important;
+.todo-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  width: 100%;
+  user-select: none;
 }
 
-[data-note-colored="true"] .rich-editor code {
-  background: rgba(0,0,0,0.07) !important;
-  color: #1a1a1a !important;
+.todo-check {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 19px;
+  height: 19px;
+  min-width: 19px;
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+  background: transparent;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  flex-shrink: 0;
 }
 
-[data-note-colored="true"] .rich-editor pre {
-  background: rgba(0,0,0,0.05) !important;
-  border-color: #cccccc !important;
+.todo-check:hover {
+  border-color: var(--text-secondary);
+  background: var(--surface-hover);
+  transform: scale(1.1);
 }
 
-[data-note-colored="true"] .rich-editor a {
-  color: #333333 !important;
+.todo-check:checked {
+  background: var(--text);
+  border-color: var(--text);
+  transform: scale(1);
 }
 
-[data-note-colored="true"] .format-btn {
-  color: #555555 !important;
+.todo-check:checked::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 5px;
+  height: 9px;
+  border: 1.5px solid var(--bg);
+  border-top: none;
+  border-left: none;
+  transform: rotate(45deg);
 }
 
-[data-note-colored="true"] .format-btn:hover {
-  background: rgba(0,0,0,0.07) !important;
-  color: #1a1a1a !important;
+.todo-text {
+  font-family: var(--font-display);
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--text);
+  flex: 1;
+  transition: color 0.2s ease, opacity 0.2s ease;
+  outline: none;
+  word-break: break-word;
+  letter-spacing: -0.01em;
+}
+
+.todo-check:checked ~ .todo-text {
+  text-decoration: line-through;
+  text-decoration-color: var(--border);
+  color: var(--text-muted);
+  opacity: 0.4;
+}
+
+/* Separator between checked and unchecked — handled via JS below */
+.todo-item + .todo-item {
+  margin-top: 0;
+}
+
+/* Dark mode */
+[data-theme="dark"] .todo-check:checked {
+  background: var(--text);
+  border-color: var(--text);
+}
+
+[data-theme="dark"] .todo-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Colored note backgrounds */
+[data-note-colored="true"] .todo-check {
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+[data-note-colored="true"] .todo-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-note-colored="true"] .todo-text {
+  color: #1a1a1a;
+}
+
+[data-note-colored="true"] .todo-check:checked ~ .todo-text {
+  color: #888888;
+}
+
+/* Todo progress bar */
+.todo-group {
+  margin: 8px 0;
+  padding: 4px 0;
+}
+
+.todo-progress-bar {
+  height: 3px;
+  background: var(--border-light);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 0 10px 6px;
+}
+
+.todo-progress-fill {
+  height: 100%;
+  background: var(--text);
+  border-radius: 2px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0.7;
+}
+
+.todo-progress-label {
+  display: flex;
+  align-items: center;
+  padding: 0 10px 8px;
+  font-family: var(--font-body);
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  gap: 2px;
+}
+
+.todo-sep {
+  opacity: 0.4;
 }

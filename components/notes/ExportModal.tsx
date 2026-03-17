@@ -111,7 +111,24 @@ export function ExportModal({ note, onClose }: Props) {
   const exportVisual = async (fmt: "png" | "pdf") => {
     const { default: html2canvas } = await import("html2canvas");
     if (!previewRef.current) return;
-    const canvas = await html2canvas(previewRef.current, { scale: 2, useCORS: true, backgroundColor: null });
+    // Clone and clean the preview element before capturing
+    const clone = previewRef.current.cloneNode(true) as HTMLElement;
+    clone.style.position = "fixed";
+    clone.style.top = "-9999px";
+    clone.style.left = "0";
+    clone.style.width = previewRef.current.offsetWidth + "px";
+    document.body.appendChild(clone);
+    // Remove any dark backgrounds from cloned content
+    clone.querySelectorAll("[style]").forEach((el: Element) => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.background = "";
+      htmlEl.style.backgroundColor = "";
+      if (htmlEl.style.color === "#0a0a0a" || htmlEl.style.color === "rgb(10,10,10)") {
+        htmlEl.style.color = "";
+      }
+    });
+    const canvas = await html2canvas(clone, { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false });
+    document.body.removeChild(clone);
     if (fmt === "png") {
       canvas.toBlob(blob => { if (blob) downloadBlob(blob, `${note.title || "note"}.png`); });
     } else {
@@ -417,7 +434,16 @@ const ExportPreview = React.forwardRef<HTMLDivElement, {
   customBg: string|null; showWatermark: boolean; overrideContent?: string;
 }>(({ note, template, layoutTemplate, customBg, showWatermark, overrideContent }, ref) => {
   const date = dateFns(new Date(note.updatedAt), "MMMM d, yyyy");
-  const contentHtml = overrideContent || note.content || "";
+  // Strip dark-theme inline styles from editor content so it renders cleanly in export
+  const rawHtml = overrideContent || note.content || "";
+  const contentHtml = rawHtml
+    .replace(/background:\s*#[0-9a-fA-F]{3,6}[^;"']*/g, "")
+    .replace(/background-color:\s*#[0-9a-fA-F]{3,6}[^;"']*/g, "")
+    .replace(/color:\s*#(?:0a0a0a|111111|0e0d0b|1a1916|000000)[^;"']*/g, "")
+    .replace(/style="[^"]*"/g, (match) => {
+      // Remove background and problematic color styles
+      return match.replace(/background(-color)?:[^;"]*(;|(?="))/g, "").replace(/style=""/, "");
+    });
 
   const styles: Record<Template, React.CSSProperties> = {
     minimal:  { background:"#ffffff",                                         padding:"56px 52px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#1a1916", position:"relative", overflow:"hidden" },

@@ -7,7 +7,7 @@ import {
   Tag as TagIcon, Smile, Palette, Download, Copy,
   Bold, Italic, Underline, List, ListOrdered,
   Quote, Code, Minus, Link, Image as ImageIcon,
-  Check, X, Table, Sparkles, Mic, RotateCcw
+  Check, X, Table, Sparkles, Mic, RotateCcw, CheckSquare
 } from "lucide-react";
 import { ExportModal } from "../export/ExportModal";
 import { VoiceRecorder } from "./VoiceRecorder";
@@ -61,9 +61,6 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   const [wordCount, setWordCount] = useState(note.wordCount || 0);
   const [localNote, setLocalNote] = useState(note);
   const [floatingToolbar, setFloatingToolbar] = useState<{ el: HTMLElement; type: "image"|"table"; x: number; y: number } | null>(null);
-  const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
-  const [imgOverlay, setImgOverlay] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
-  const imgOverlayRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
 
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimeout = useRef<NodeJS.Timeout>();
@@ -148,6 +145,55 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     editorRef.current?.focus();
     document.execCommand("insertHTML", false, html);
     handleContentChange();
+  };
+
+  const insertTodo = () => {
+    const id = `todo-${Date.now()}`;
+    const html = [
+      `<div class="todo-group" data-todo-group="${id}">`,
+      `<div class="todo-progress-bar"><div class="todo-progress-fill" style="width:0%"></div></div>`,
+      `<div class="todo-progress-label"><span class="todo-done-count">0</span><span class="todo-sep"> / </span><span class="todo-total-count">3</span><span class="todo-progress-pct" style="margin-left:auto;opacity:0.5">0%</span></div>`,
+      `<div class="todo-item"><label class="todo-label"><input type="checkbox" class="todo-check" /><span class="todo-text" contenteditable="true">Task one</span></label></div>`,
+      `<div class="todo-item"><label class="todo-label"><input type="checkbox" class="todo-check" /><span class="todo-text" contenteditable="true">Task two</span></label></div>`,
+      `<div class="todo-item"><label class="todo-label"><input type="checkbox" class="todo-check" /><span class="todo-text" contenteditable="true">Task three</span></label></div>`,
+      `</div>`,
+      `<p><br></p>`,
+    ].join("");
+    editorRef.current?.focus();
+    document.execCommand("insertHTML", false, html);
+    // Update progress after insert
+    setTimeout(() => updateTodoProgress(), 50);
+    handleContentChange();
+  };
+
+  const updateTodoProgress = () => {
+    if (!editorRef.current) return;
+    editorRef.current.querySelectorAll(".todo-group").forEach(group => {
+      const checks = group.querySelectorAll(".todo-check") as NodeListOf<HTMLInputElement>;
+      const total = checks.length;
+      const done = Array.from(checks).filter(c => c.checked).length;
+      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+      const fill = group.querySelector(".todo-progress-fill") as HTMLElement;
+      const doneEl = group.querySelector(".todo-done-count");
+      const totalEl = group.querySelector(".todo-total-count");
+      const pctEl = group.querySelector(".todo-progress-pct");
+      if (fill) fill.style.width = `${pct}%`;
+      if (doneEl) doneEl.textContent = String(done);
+      if (totalEl) totalEl.textContent = String(total);
+      if (pctEl) pctEl.textContent = `${pct}%`;
+    });
+  };
+
+  const handleEditorInput = useCallback(() => {
+    // Handle checkbox clicks saving state
+    handleContentChange();
+  }, [handleContentChange]);
+
+  const handleEditorMouseDown = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.classList.contains("todo-check") || target.type === "checkbox") {
+      setTimeout(() => { updateTodoProgress(); handleContentChange(); }, 50);
+    }
   };
 
   const handleImageUpload = () => {
@@ -271,16 +317,11 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     const target = e.target as HTMLElement;
     const isImg = target.tagName === "IMG";
     const tbl = target.closest("table") as HTMLElement | null;
-    if (isImg) {
+    if (isImg || tbl) {
       e.preventDefault();
-      const img = target as HTMLImageElement;
-      const rect = img.getBoundingClientRect();
-      setSelectedImg(img);
-      setImgOverlay({ x: rect.left, y: rect.top, w: rect.width, h: rect.height });
-    } else if (tbl) {
-      e.preventDefault();
-      const rect = tbl.getBoundingClientRect();
-      setFloatingToolbar({ el: tbl, type: "table", x: rect.left, y: rect.top });
+      const el = isImg ? target : tbl!;
+      const rect = el.getBoundingClientRect();
+      setFloatingToolbar({ el, type: isImg ? "image" : "table", x: rect.left, y: rect.top });
     }
   };
 
@@ -288,82 +329,14 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     const target = e.target as HTMLElement;
     const isImg = target.tagName === "IMG";
     const tbl = target.closest("table") as HTMLElement | null;
-    if (isImg) {
-      const img = target as HTMLImageElement;
-      const rect = img.getBoundingClientRect();
-      setSelectedImg(img);
-      setImgOverlay({ x: rect.left, y: rect.top, w: rect.width, h: rect.height });
-      imgOverlayRef.current = { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
-      setFloatingToolbar(null);
-    } else if (tbl) {
-      const rect = tbl.getBoundingClientRect();
-      setFloatingToolbar({ el: tbl, type: "table", x: rect.left, y: rect.top });
-      setSelectedImg(null); setImgOverlay(null);
+    if (isImg || tbl) {
+      const el = isImg ? target : tbl!;
+      const rect = el.getBoundingClientRect();
+      setFloatingToolbar({ el, type: isImg ? "image" : "table", x: rect.left, y: rect.top });
     } else {
       setFloatingToolbar(null);
-      setSelectedImg(null); setImgOverlay(null);
     }
     closeAll();
-  };
-
-  const startImgDrag = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (!selectedImg || !imgOverlay) return;
-    const startX = e.clientX - imgOverlay.x;
-    const startY = e.clientY - imgOverlay.y;
-    const onMove = (ev: MouseEvent) => {
-      const nx = ev.clientX - startX;
-      const ny = ev.clientY - startY;
-      setImgOverlay(o => o ? { ...o, x: nx, y: ny } : o);
-      imgOverlayRef.current = { ...imgOverlayRef.current!, x: nx, y: ny };
-    };
-    const onUp = () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      if (!selectedImg || !imgOverlayRef.current) return;
-      // Apply position as margin offsets — convert to float style
-      const editorRect = editorRef.current!.getBoundingClientRect();
-      const relX = imgOverlayRef.current.x - editorRect.left;
-      selectedImg.style.marginLeft = `${relX}px`;
-      handleContentChange();
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  };
-
-  const startImgResize = (e: React.MouseEvent, corner: string) => {
-    e.preventDefault(); e.stopPropagation();
-    if (!selectedImg || !imgOverlay) return;
-    const startX = e.clientX;
-    const startW = imgOverlay.w;
-    const startH = imgOverlay.h;
-    const aspect = startW / startH;
-    const onMove = (ev: MouseEvent) => {
-      const dx = ev.clientX - startX;
-      const nw = Math.max(80, startW + (corner.includes("right") ? dx : -dx));
-      const nh = nw / aspect;
-      setImgOverlay(o => o ? { ...o, w: nw, h: nh } : o);
-      imgOverlayRef.current = { ...imgOverlayRef.current!, w: nw, h: nh };
-    };
-    const onUp = () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      if (!selectedImg || !imgOverlayRef.current) return;
-      selectedImg.style.width = `${imgOverlayRef.current.w}px`;
-      selectedImg.style.height = "auto";
-      const rect = selectedImg.getBoundingClientRect();
-      setImgOverlay({ x: rect.left, y: rect.top, w: rect.width, h: rect.height });
-      handleContentChange();
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  };
-
-  const deleteSelectedImg = () => {
-    if (!selectedImg) return;
-    selectedImg.parentNode?.removeChild(selectedImg);
-    setSelectedImg(null); setImgOverlay(null);
-    handleContentChange();
   };
 
   const floatingDelete = () => {
@@ -635,6 +608,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
         <button className="format-btn" onClick={handleImageUpload} title="Image"><ImageIcon size={12} /></button>
         <button className="format-btn" onClick={insertTable}       title="Table"><Table size={12} /></button>
         <button className="format-btn" onClick={() => fmt("insertHorizontalRule")} title="Divider"><Minus size={12} /></button>
+        <button className="format-btn" onClick={insertTodo} title="To-do list"><CheckSquare size={12} /></button>
         <button className="format-btn" onClick={() => {
           if (confirm("Clear all content?")) { if(editorRef.current) editorRef.current.innerHTML=""; handleContentChange(); }
         }} style={{ marginLeft:"auto", fontSize:"10px", color:"var(--text-muted)", padding:"0 8px" }}>Clear</button>
@@ -698,6 +672,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
               className="rich-editor"
               data-placeholder="Start writing…"
               onInput={handleContentChange}
+              onMouseDown={handleEditorMouseDown}
               onContextMenu={handleContextMenu}
               onClick={handleEditorClick}
               onPaste={e => {
@@ -761,50 +736,6 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
             </div>
             <AIPanel actions={AI_ACTIONS} loading={aiLoading} currentAction={aiAction}
               result={aiResult} onAction={handleAI} onApply={applyAI} onClose={() => setShowAI(false)} />
-          </div>
-        </div>
-      )}
-
-      {/* Image resize/drag overlay */}
-      {selectedImg && imgOverlay && (
-        <div
-          style={{
-            position: "fixed",
-            left: imgOverlay.x - 2,
-            top: imgOverlay.y - 2,
-            width: imgOverlay.w + 4,
-            height: imgOverlay.h + 4,
-            zIndex: 90,
-            pointerEvents: "none",
-          }}>
-          {/* Selection border */}
-          <div style={{ position:"absolute", inset:0, border:"2px solid #5DCAA5", borderRadius:"2px", pointerEvents:"none" }} />
-
-          {/* Drag handle - top bar */}
-          <div
-            onMouseDown={startImgDrag}
-            style={{ position:"absolute", top:0, left:0, right:0, height:"24px", cursor:"move", pointerEvents:"all", background:"rgba(93,202,165,0.15)", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 6px" }}>
-            <span style={{ fontSize:"10px", color:"#5DCAA5", fontFamily:"var(--font-body)", userSelect:"none" }}>⠿ drag</span>
-            <button
-              onMouseDown={e => { e.stopPropagation(); deleteSelectedImg(); }}
-              style={{ background:"#dc2626", border:"none", borderRadius:"4px", color:"white", fontSize:"10px", padding:"2px 6px", cursor:"pointer", pointerEvents:"all" }}>
-              ✕
-            </button>
-          </div>
-
-          {/* Resize handles */}
-          {[
-            { corner:"bottom-right", style:{ bottom:-5, right:-5, cursor:"se-resize" } },
-            { corner:"bottom-left",  style:{ bottom:-5, left:-5,  cursor:"sw-resize" } },
-          ].map(({ corner, style }) => (
-            <div key={corner}
-              onMouseDown={e => startImgResize(e, corner)}
-              style={{ position:"absolute", width:"10px", height:"10px", background:"#5DCAA5", borderRadius:"2px", pointerEvents:"all", ...style }} />
-          ))}
-
-          {/* Size label */}
-          <div style={{ position:"absolute", bottom:-20, left:0, fontSize:"10px", color:"#5DCAA5", fontFamily:"var(--font-body)", whiteSpace:"nowrap", pointerEvents:"none" }}>
-            {Math.round(imgOverlay.w)} × {Math.round(imgOverlay.h)}
           </div>
         </div>
       )}
