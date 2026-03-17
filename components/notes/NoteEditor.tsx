@@ -190,7 +190,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   }, [handleContentChange]);
 
   const handleEditorMouseDown = (e: React.MouseEvent) => {
-    const target = e.target as HTMLElement;
+    const target = e.target as HTMLInputElement;
     if (target.classList.contains("todo-check") || target.type === "checkbox") {
       setTimeout(() => { updateTodoProgress(); handleContentChange(); }, 50);
     }
