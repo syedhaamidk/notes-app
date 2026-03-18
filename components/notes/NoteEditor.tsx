@@ -95,8 +95,8 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     if (editorRef.current) {
       editorRef.current.innerHTML = note.content || "";
       // The `checked` *property* is not serialised into innerHTML by all browsers.
-      // We persist the *attribute* ourselves (see handleCheckboxClick), so we now
-      // restore the property from the attribute on every load.
+      // We persist the *attribute* and the `todo-done` class ourselves
+      // (see handleEditorMouseDown), so we restore both here on every load.
       editorRef.current
         .querySelectorAll<HTMLInputElement>(".todo-check")
         .forEach(cb => {
@@ -175,31 +175,138 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   };
 
   const insertTodo = () => {
-    const item = (text: string) =>
-      `<div class="todo-item"><span class="todo-check-wrap"><input type="checkbox" class="todo-check" /></span><span class="todo-text" contenteditable="true">${text}</span></div>`;
-    const html = `<div class="todo-group">${item("Task one")}${item("Task two")}${item("Task three")}</div><p><br></p>`;
+    // Insert a single blank task so the user types their own content.
+    // Subsequent tasks are added by pressing Enter inside any todo-text span.
+    const html =
+      `<div class="todo-group">` +
+        `<div class="todo-item">` +
+          `<span class="todo-check-wrap"><input type="checkbox" class="todo-check"></span>` +
+          `<span class="todo-text" contenteditable="true"><br></span>` +
+        `</div>` +
+      `</div><p><br></p>`;
     editorRef.current?.focus();
     document.execCommand("insertHTML", false, html);
+
+    // Place cursor inside the new task's text span
+    const lastGroup = editorRef.current?.querySelector<HTMLElement>(
+      ".todo-group:last-of-type .todo-text"
+    );
+    if (lastGroup && window.getSelection) {
+      const sel = window.getSelection()!;
+      const r = document.createRange();
+      r.setStart(lastGroup, 0); r.collapse(true);
+      sel.removeAllRanges(); sel.addRange(r);
+    }
+
     handleContentChange();
   };
 
-  const handleCheckboxClick = useCallback((e: React.MouseEvent) => {
-    const target = e.target as HTMLInputElement;
-    if (target.classList.contains("todo-check")) {
-      // Sync the HTML *attribute* so the checked state survives innerHTML
-      // serialisation (the DOM *property* alone is not saved).
-      if (target.checked) {
-        target.setAttribute("checked", "");
-      } else {
-        target.removeAttribute("checked");
-      }
-      // Toggle a CSS class on the parent row for reliable strikethrough styling
+  // ── Checkbox toggle ─────────────────────────────────────────────────────────
+  // MUST be onMouseDown + preventDefault. Inside a contenteditable div the
+  // browser swallows the click before React's onClick fires, so target.checked
+  // is already in the wrong state by the time we read it.
+  const handleEditorMouseDown = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (
+      target.classList.contains("todo-check") ||
+      target.classList.contains("todo-check-wrap") ||
+      target.closest(".todo-check-wrap")
+    ) {
+      e.preventDefault(); // stop contenteditable from taking over
+
       const item = target.closest<HTMLElement>(".todo-item");
-      if (item) item.classList.toggle("todo-done", target.checked);
+      if (!item) return;
+      const cb = item.querySelector<HTMLInputElement>(".todo-check");
+      if (!cb) return;
+
+      // Read the CURRENT persisted state from the attribute (not the property,
+      // which the browser may already have flipped on mousedown).
+      const wasDone = item.classList.contains("todo-done");
+      const nowDone = !wasDone;
+
+      cb.checked = nowDone;
+      if (nowDone) {
+        cb.setAttribute("checked", "");
+        item.classList.add("todo-done");
+      } else {
+        cb.removeAttribute("checked");
+        item.classList.remove("todo-done");
+      }
+
       computeTodoStats();
       setTimeout(() => handleContentChange(), 20);
     }
   }, [handleContentChange, computeTodoStats]);
+
+  // ── Keyboard handling inside todo items ─────────────────────────────────────
+  const handleEditorKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+
+    const node = sel.getRangeAt(0).startContainer;
+    const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node as HTMLElement;
+    const todoText = el?.closest<HTMLElement>(".todo-text");
+    if (!todoText) return;
+
+    const item = todoText.closest<HTMLElement>(".todo-item");
+    if (!item) return;
+
+    // ── Enter: add new task, or exit list if current task is empty ───────────
+    if (e.key === "Enter") {
+      e.preventDefault();
+
+      if (!todoText.textContent?.trim()) {
+        // Empty task + Enter → exit todo list, insert a paragraph below
+        const p = document.createElement("p");
+        p.innerHTML = "<br>";
+        const group = item.closest<HTMLElement>(".todo-group");
+        const insertAfter = group ?? item;
+        insertAfter.parentNode?.insertBefore(p, insertAfter.nextSibling);
+        item.remove();
+        // If group is now empty, remove it too
+        if (group && !group.querySelector(".todo-item")) group.remove();
+
+        const r = document.createRange();
+        r.setStart(p, 0); r.collapse(true);
+        sel.removeAllRanges(); sel.addRange(r);
+      } else {
+        // Non-empty task + Enter → insert a new blank task directly after
+        const newItem = document.createElement("div");
+        newItem.className = "todo-item";
+        newItem.innerHTML =
+          `<span class="todo-check-wrap"><input type="checkbox" class="todo-check"></span>` +
+          `<span class="todo-text" contenteditable="true"><br></span>`;
+        item.parentNode?.insertBefore(newItem, item.nextSibling);
+
+        const newText = newItem.querySelector<HTMLElement>(".todo-text")!;
+        const r = document.createRange();
+        r.setStart(newText, 0); r.collapse(true);
+        sel.removeAllRanges(); sel.addRange(r);
+      }
+
+      handleContentChange();
+    }
+
+    // ── Backspace on an empty task: remove it, focus previous ───────────────
+    if (e.key === "Backspace" && !todoText.textContent?.trim()) {
+      e.preventDefault();
+
+      const prev = item.previousElementSibling as HTMLElement | null;
+      item.remove();
+
+      if (prev?.classList.contains("todo-item")) {
+        const prevText = prev.querySelector<HTMLElement>(".todo-text");
+        if (prevText) {
+          const r = document.createRange();
+          r.selectNodeContents(prevText);
+          r.collapse(false);
+          sel.removeAllRanges(); sel.addRange(r);
+        }
+      }
+
+      handleContentChange();
+    }
+  }, [handleContentChange]);
 
   const handleImageUpload = () => {
     const input = document.createElement("input");
@@ -710,7 +817,9 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
               data-placeholder="Start writing…"
               onInput={handleContentChange}
               onContextMenu={handleContextMenu}
-              onClick={(e) => { handleEditorClick(e); handleCheckboxClick(e); }}
+              onMouseDown={handleEditorMouseDown}
+              onClick={handleEditorClick}
+              onKeyDown={handleEditorKeyDown}
               onPaste={e => {
                 e.preventDefault();
                 const html = e.clipboardData.getData("text/html");

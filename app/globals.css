@@ -372,22 +372,24 @@ body {
 /* Strikethrough for checked items.
    Two selectors cover all cases:
    · :has(:checked)  — live DOM state (works while editing)
-   · .todo-done      — persisted class saved in innerHTML (works after reload)  */
+   · .todo-done      — persisted class saved in innerHTML (works after reload)
+   !important is intentional: the .todo-text base rule has equal specificity and
+   must be overridden here. */
 .todo-item:has(.todo-check:checked) .todo-text,
 .todo-item.todo-done .todo-text {
-  text-decoration: line-through;
-  text-decoration-color: var(--border);
-  color: var(--text-muted);
-  opacity: 0.45;
+  text-decoration: line-through !important;
+  text-decoration-color: var(--text-muted) !important;
+  color: var(--text-muted) !important;
+  opacity: 0.5 !important;
 }
 
-/* Keep the same filled-circle look for .todo-done */
+/* Keep the filled-circle checkmark for .todo-done after reload */
 .todo-item.todo-done .todo-check {
-  background: var(--text);
-  border-color: var(--text);
+  background: var(--text) !important;
+  border-color: var(--text) !important;
 }
 .todo-item.todo-done .todo-check::after {
-  content: "";
+  content: "" !important;
   position: absolute;
   left: 5px;
   top: 2px;
