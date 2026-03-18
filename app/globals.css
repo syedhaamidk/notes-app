@@ -288,7 +288,6 @@ body {
 .todo-group {
   margin: 10px 0;
   padding: 2px 0;
-  counter-reset: todo-total 0 todo-done 0;
 }
 
 .todo-item {
@@ -298,38 +297,39 @@ body {
   padding: 7px 4px;
   border-radius: 8px;
   transition: background 0.12s ease;
-  counter-increment: todo-total;
+  cursor: default;
 }
 
 .todo-item:hover {
   background: var(--surface-hover);
 }
 
-/* Checkbox wrapper - separate click target from text */
+/* ── Checkbox: a plain <span>, styled as a circle ── */
 .todo-check-wrap {
   display: flex;
   align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  cursor: pointer;
   width: 24px;
   height: 24px;
-  justify-content: center;
+  cursor: pointer;
+  /* Prevent contenteditable from treating this as editable text */
+  -webkit-user-select: none;
+  user-select: none;
+  contenteditable: false;
 }
 
 .todo-check {
-  appearance: none;
-  -webkit-appearance: none;
+  display: block;
   width: 18px;
   height: 18px;
   min-width: 18px;
   border: 1.5px solid var(--border);
   border-radius: 50%;
-  cursor: pointer;
   background: transparent;
   transition: all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
   position: relative;
-  flex-shrink: 0;
-  pointer-events: all;
+  pointer-events: none; /* clicks go to .todo-check-wrap */
 }
 
 .todo-check-wrap:hover .todo-check {
@@ -337,12 +337,15 @@ body {
   transform: scale(1.1);
 }
 
-.todo-check:checked {
-  background: var(--text);
-  border-color: var(--text);
+/* ── Checked state — driven purely by .todo-done on the parent ── */
+.todo-item.todo-done .todo-check {
+  background: var(--text) !important;
+  border-color: var(--text) !important;
+  transform: scale(1) !important;
 }
 
-.todo-check:checked::after {
+/* Checkmark tick via ::after */
+.todo-item.todo-done .todo-check::after {
   content: "";
   position: absolute;
   left: 5px;
@@ -355,6 +358,7 @@ body {
   transform: rotate(45deg);
 }
 
+/* ── Task text ── */
 .todo-text {
   font-family: var(--font-display);
   font-size: 15px;
@@ -366,39 +370,14 @@ body {
   word-break: break-word;
   letter-spacing: -0.01em;
   cursor: text;
-  pointer-events: all;
 }
 
-/* Strikethrough for checked items.
-   Two selectors cover all cases:
-   · :has(:checked)  — live DOM state (works while editing)
-   · .todo-done      — persisted class saved in innerHTML (works after reload)
-   !important is intentional: the .todo-text base rule has equal specificity and
-   must be overridden here. */
-.todo-item:has(.todo-check:checked) .todo-text,
+/* ── Strikethrough — single source of truth: .todo-done class ── */
 .todo-item.todo-done .todo-text {
   text-decoration: line-through !important;
   text-decoration-color: var(--text-muted) !important;
   color: var(--text-muted) !important;
   opacity: 0.5 !important;
-}
-
-/* Keep the filled-circle checkmark for .todo-done after reload */
-.todo-item.todo-done .todo-check {
-  background: var(--text) !important;
-  border-color: var(--text) !important;
-}
-.todo-item.todo-done .todo-check::after {
-  content: "" !important;
-  position: absolute;
-  left: 5px;
-  top: 2px;
-  width: 5px;
-  height: 9px;
-  border: 1.5px solid var(--bg);
-  border-top: none;
-  border-left: none;
-  transform: rotate(45deg);
 }
 
 /* Dark mode */
@@ -416,6 +395,6 @@ body {
 [data-note-colored="true"] .todo-text {
   color: #1a1a1a;
 }
-[data-note-colored="true"] .todo-item:has(.todo-check:checked) .todo-text {
-  color: #888;
+[data-note-colored="true"] .todo-item.todo-done .todo-text {
+  color: #888 !important;
 }

@@ -82,31 +82,17 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   // Compute todo completion stats from the live DOM
   const computeTodoStats = useCallback(() => {
     if (!editorRef.current) return;
-    const checkboxes = Array.from(
-      editorRef.current.querySelectorAll<HTMLInputElement>(".todo-check")
-    );
-    if (checkboxes.length === 0) { setTodoStats(null); return; }
-    const done = checkboxes.filter(cb => cb.checked).length;
-    setTodoStats({ done, total: checkboxes.length });
+    const total = editorRef.current.querySelectorAll(".todo-item").length;
+    if (total === 0) { setTodoStats(null); return; }
+    const done  = editorRef.current.querySelectorAll(".todo-item.todo-done").length;
+    setTodoStats({ done, total });
   }, []);
 
-  // Init editor HTML + restore persisted checkbox state
+  // Init editor HTML — state lives entirely in the todo-done CSS class which
+  // is persisted in innerHTML, so no extra restoration step is needed.
   useEffect(() => {
     if (editorRef.current) {
       editorRef.current.innerHTML = note.content || "";
-      // The `checked` *property* is not serialised into innerHTML by all browsers.
-      // We persist the *attribute* and the `todo-done` class ourselves
-      // (see handleEditorMouseDown), so we restore both here on every load.
-      editorRef.current
-        .querySelectorAll<HTMLInputElement>(".todo-check")
-        .forEach(cb => {
-          const isChecked = cb.hasAttribute("checked");
-          cb.checked = isChecked;
-          const item = cb.closest<HTMLElement>(".todo-item");
-          if (item) {
-            item.classList.toggle("todo-done", isChecked);
-          }
-        });
     }
     const text = editorRef.current?.innerText || "";
     setWordCount(text.trim() ? text.trim().split(/\s+/).length : 0);
@@ -175,66 +161,45 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   };
 
   const insertTodo = () => {
-    // Insert a single blank task so the user types their own content.
-    // Subsequent tasks are added by pressing Enter inside any todo-text span.
+    // Pure span-based checkbox — NO <input type="checkbox">.
+    // State lives entirely in the "todo-done" CSS class on .todo-item.
+    // This avoids every browser bug around inputs inside contenteditable.
+    const newItem =
+      `<div class="todo-item">` +
+        `<span class="todo-check-wrap"><span class="todo-check"></span></span>` +
+        `<span class="todo-text" contenteditable="true"><br></span>` +
+      `</div>`;
     const html =
-      `<div class="todo-group">` +
-        `<div class="todo-item">` +
-          `<span class="todo-check-wrap"><input type="checkbox" class="todo-check"></span>` +
-          `<span class="todo-text" contenteditable="true"><br></span>` +
-        `</div>` +
-      `</div><p><br></p>`;
+      `<div class="todo-group">${newItem}</div><p><br></p>`;
+
     editorRef.current?.focus();
     document.execCommand("insertHTML", false, html);
 
-    // Place cursor inside the new task's text span
-    const lastGroup = editorRef.current?.querySelector<HTMLElement>(
-      ".todo-group:last-of-type .todo-text"
-    );
-    if (lastGroup && window.getSelection) {
+    // Place cursor inside the new task text span
+    const groups = editorRef.current?.querySelectorAll<HTMLElement>(".todo-group");
+    const lastGroup = groups?.[groups.length - 1];
+    const firstText = lastGroup?.querySelector<HTMLElement>(".todo-text");
+    if (firstText && window.getSelection) {
       const sel = window.getSelection()!;
       const r = document.createRange();
-      r.setStart(lastGroup, 0); r.collapse(true);
+      r.setStart(firstText, 0); r.collapse(true);
       sel.removeAllRanges(); sel.addRange(r);
     }
-
     handleContentChange();
   };
 
   // ── Checkbox toggle ─────────────────────────────────────────────────────────
-  // MUST be onMouseDown + preventDefault. Inside a contenteditable div the
-  // browser swallows the click before React's onClick fires, so target.checked
-  // is already in the wrong state by the time we read it.
+  // Uses onMouseDown + preventDefault so contenteditable never interferes.
+  // State is the single source of truth: "todo-done" class on .todo-item.
   const handleEditorMouseDown = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
-    if (
-      target.classList.contains("todo-check") ||
-      target.classList.contains("todo-check-wrap") ||
-      target.closest(".todo-check-wrap")
-    ) {
-      e.preventDefault(); // stop contenteditable from taking over
-
+    if (target.closest(".todo-check-wrap")) {
+      e.preventDefault();
       const item = target.closest<HTMLElement>(".todo-item");
       if (!item) return;
-      const cb = item.querySelector<HTMLInputElement>(".todo-check");
-      if (!cb) return;
-
-      // Read the CURRENT persisted state from the attribute (not the property,
-      // which the browser may already have flipped on mousedown).
-      const wasDone = item.classList.contains("todo-done");
-      const nowDone = !wasDone;
-
-      cb.checked = nowDone;
-      if (nowDone) {
-        cb.setAttribute("checked", "");
-        item.classList.add("todo-done");
-      } else {
-        cb.removeAttribute("checked");
-        item.classList.remove("todo-done");
-      }
-
+      item.classList.toggle("todo-done");
       computeTodoStats();
-      setTimeout(() => handleContentChange(), 20);
+      setTimeout(() => handleContentChange(), 0);
     }
   }, [handleContentChange, computeTodoStats]);
 
@@ -274,7 +239,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
         const newItem = document.createElement("div");
         newItem.className = "todo-item";
         newItem.innerHTML =
-          `<span class="todo-check-wrap"><input type="checkbox" class="todo-check"></span>` +
+          `<span class="todo-check-wrap"><span class="todo-check"></span></span>` +
           `<span class="todo-text" contenteditable="true"><br></span>`;
         item.parentNode?.insertBefore(newItem, item.nextSibling);
 
