@@ -61,12 +61,18 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
     const isTodoNote = (note.content || "").includes('class="todo-item"') || (note.content || "").includes('class="todo-check"');
     const todoItems: { checked: boolean; text: string }[] = [];
     if (isTodoNote) {
-      const itemRegex = /<div class="todo-item">([\s\S]*?)<\/div>/g;
+      // Allow for extra classes on the todo-item div (e.g. "todo-item todo-done")
+      const itemRegex = /<div class="todo-item[^"]*">([\s\S]*?)<\/div>/g;
       let m;
       const html = note.content || "";
       while ((m = itemRegex.exec(html)) !== null) {
-        const checked = m[1].includes('checked');
-        const text = m[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        // A todo item is done when it carries the todo-done class on the wrapper
+        // OR when its inner checkbox has the `checked` attribute.
+        const outerTag = m[0];
+        const innerHtml = m[1];
+        const checked =
+          outerTag.includes("todo-done") || /\bchecked\b/.test(innerHtml);
+        const text = innerHtml.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
         if (text) todoItems.push({ checked, text });
       }
     }

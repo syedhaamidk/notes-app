@@ -61,6 +61,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   const [wordCount, setWordCount] = useState(note.wordCount || 0);
   const [localNote, setLocalNote] = useState(note);
   const [floatingToolbar, setFloatingToolbar] = useState<{ el: HTMLElement; type: "image"|"table"; x: number; y: number } | null>(null);
+  const [todoStats, setTodoStats] = useState<{ done: number; total: number } | null>(null);
 
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimeout = useRef<NodeJS.Timeout>();
@@ -78,14 +79,39 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     setSelectedTagIds(note.tags.map(nt => nt.tagId));
   }, [note.id, note.isPinned, note.emoji, note.color, note.isArchived, note.coverImage, note.tags.length]);
 
-  // Init editor HTML
+  // Compute todo completion stats from the live DOM
+  const computeTodoStats = useCallback(() => {
+    if (!editorRef.current) return;
+    const checkboxes = Array.from(
+      editorRef.current.querySelectorAll<HTMLInputElement>(".todo-check")
+    );
+    if (checkboxes.length === 0) { setTodoStats(null); return; }
+    const done = checkboxes.filter(cb => cb.checked).length;
+    setTodoStats({ done, total: checkboxes.length });
+  }, []);
+
+  // Init editor HTML + restore persisted checkbox state
   useEffect(() => {
     if (editorRef.current) {
       editorRef.current.innerHTML = note.content || "";
+      // The `checked` *property* is not serialised into innerHTML by all browsers.
+      // We persist the *attribute* ourselves (see handleCheckboxClick), so we now
+      // restore the property from the attribute on every load.
+      editorRef.current
+        .querySelectorAll<HTMLInputElement>(".todo-check")
+        .forEach(cb => {
+          const isChecked = cb.hasAttribute("checked");
+          cb.checked = isChecked;
+          const item = cb.closest<HTMLElement>(".todo-item");
+          if (item) {
+            item.classList.toggle("todo-done", isChecked);
+          }
+        });
     }
     const text = editorRef.current?.innerText || "";
     setWordCount(text.trim() ? text.trim().split(/\s+/).length : 0);
-  }, [note.id]);
+    computeTodoStats();
+  }, [note.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = useCallback(async (data: Record<string,unknown>): Promise<Note | undefined> => {
     setSaving(true);
@@ -112,8 +138,9 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     const text = editorRef.current?.innerText || "";
     const wc = text.trim() ? text.trim().split(/\s+/).length : 0;
     setWordCount(wc);
+    computeTodoStats();
     debounceSave({ title: titleRef.current, content });
-  }, [debounceSave]);
+  }, [debounceSave, computeTodoStats]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setTitle(e.target.value);
@@ -159,9 +186,20 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   const handleCheckboxClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLInputElement;
     if (target.classList.contains("todo-check")) {
+      // Sync the HTML *attribute* so the checked state survives innerHTML
+      // serialisation (the DOM *property* alone is not saved).
+      if (target.checked) {
+        target.setAttribute("checked", "");
+      } else {
+        target.removeAttribute("checked");
+      }
+      // Toggle a CSS class on the parent row for reliable strikethrough styling
+      const item = target.closest<HTMLElement>(".todo-item");
+      if (item) item.classList.toggle("todo-done", target.checked);
+      computeTodoStats();
       setTimeout(() => handleContentChange(), 20);
     }
-  }, [handleContentChange]);
+  }, [handleContentChange, computeTodoStats]);
 
   const handleImageUpload = () => {
     const input = document.createElement("input");
@@ -629,6 +667,38 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
               {localNote.isPinned && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📌 Pinned</span>}
               {localNote.isArchived && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📦 Archived</span>}
             </div>
+
+            {/* Todo progress bar — rendered in React so it isn't part of the
+                saved HTML and doesn't inflate word count */}
+            {todoStats && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: "10px",
+                marginBottom: "20px",
+              }}>
+                <div style={{
+                  flex: 1, height: "3px", borderRadius: "2px",
+                  background: "var(--border)", overflow: "hidden",
+                }}>
+                  <div style={{
+                    height: "100%", borderRadius: "2px",
+                    background: todoStats.done === todoStats.total
+                      ? "#5DCAA5"
+                      : "var(--text)",
+                    width: `${Math.round((todoStats.done / todoStats.total) * 100)}%`,
+                    transition: "width 0.3s ease, background 0.3s ease",
+                  }} />
+                </div>
+                <span style={{
+                  fontSize: "11px", color: "var(--text-muted)",
+                  fontFamily: "var(--font-body)", whiteSpace: "nowrap",
+                  tabularNums: true,
+                } as React.CSSProperties}>
+                  {todoStats.done} / {todoStats.total}
+                  {" · "}
+                  {Math.round((todoStats.done / todoStats.total) * 100)}%
+                </span>
+              </div>
+            )}
 
             {/* Editor */}
             <div

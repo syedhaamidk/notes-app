@@ -369,11 +369,34 @@ body {
   pointer-events: all;
 }
 
-.todo-item:has(.todo-check:checked) .todo-text {
+/* Strikethrough for checked items.
+   Two selectors cover all cases:
+   · :has(:checked)  — live DOM state (works while editing)
+   · .todo-done      — persisted class saved in innerHTML (works after reload)  */
+.todo-item:has(.todo-check:checked) .todo-text,
+.todo-item.todo-done .todo-text {
   text-decoration: line-through;
   text-decoration-color: var(--border);
   color: var(--text-muted);
   opacity: 0.45;
+}
+
+/* Keep the same filled-circle look for .todo-done */
+.todo-item.todo-done .todo-check {
+  background: var(--text);
+  border-color: var(--text);
+}
+.todo-item.todo-done .todo-check::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 5px;
+  height: 9px;
+  border: 1.5px solid var(--bg);
+  border-top: none;
+  border-left: none;
+  transform: rotate(45deg);
 }
 
 /* Dark mode */
