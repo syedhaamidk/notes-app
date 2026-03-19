@@ -900,7 +900,11 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
             </div>
           );
 
-          // ── PAGE mode — paginated A4 cards ────────────────────────────
+          // ── PAGE mode — one editor, visual page-break overlays ────────
+          // The contenteditable is NEVER clipped — it grows to any height.
+          // Page divisions are drawn as absolutely-positioned lines + page
+          // number labels every 1122px (A4 at 96 dpi including padding).
+          // The cursor always works because there's one surface to type in.
           return (
             <div className="flex-1 overflow-y-auto nota-page-canvas" onClick={closeAll}>
               {localNote.coverImage && (
@@ -922,75 +926,56 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
                 </span>
               </div>
 
-              {/* First page — contains the editor; grows with content */}
+              {/* Single card — grows freely, cursor always works */}
               <div
                 ref={pageCardRef}
                 className="nota-page-card"
                 style={{
                   background: editorBg || "var(--page-card-bg, #ffffff)",
-                  // Clamp at exactly one A4 page height — overflow spills into extra pages
-                  minHeight: "1122px",
-                  maxHeight: pageCount > 1 ? "1122px" : undefined,
-                  overflow: pageCount > 1 ? "hidden" : "visible",
                   position: "relative",
+                  // No maxHeight, no overflow:hidden — editor is fully accessible
                 }}
               >
                 {innerContent}
 
-                {/* Subtle bottom-of-page rule when content will overflow */}
-                {pageCount > 1 && (
-                  <div style={{
-                    position:"absolute", bottom:0, left:"72px", right:"72px",
-                    height:"1px", background:"var(--border)", opacity:0.5,
-                  }} />
-                )}
-              </div>
-
-              {/* Extra pages — rendered as empty continuation sheets */}
-              {Array.from({ length: pageCount - 1 }).map((_, i) => (
-                <div key={i}>
-                  {/* Page separator gap with page number */}
-                  <div style={{
-                    display:"flex", alignItems:"center", justifyContent:"center",
-                    height:"32px", gap:"10px",
-                  }}>
-                    <div style={{ flex:1, maxWidth:"80px", height:"0.5px", background:"var(--border)", opacity:0.4 }} />
-                    <span style={{ fontSize:"9px", color:"var(--text-muted)", fontFamily:"var(--font-body)", opacity:0.7 }}>
-                      Page {i + 2}
-                    </span>
-                    <div style={{ flex:1, maxWidth:"80px", height:"0.5px", background:"var(--border)", opacity:0.4 }} />
-                  </div>
-
-                  {/* Continuation page card — empty writing space */}
-                  <div className="nota-page-card" style={{
-                    background: editorBg || "var(--page-card-bg, #ffffff)",
-                    minHeight: "1122px",
-                  }}>
-                    {/* Faint ruled lines to indicate writeable area */}
-                    <div style={{ position:"relative", height:"100%", minHeight:"900px" }}>
-                      {Array.from({ length: 28 }).map((_, li) => (
-                        <div key={li} style={{
-                          position:"absolute",
-                          left:0, right:0,
-                          top:`${li * 32}px`,
-                          height:"0.5px",
-                          background:"var(--border)",
-                          opacity:0.25,
-                        }} />
-                      ))}
-                      <p style={{
-                        position:"absolute", top:"16px", left:0, right:0,
-                        textAlign:"center", fontSize:"11px",
-                        color:"var(--text-muted)", opacity:0.35,
-                        fontFamily:"var(--font-body)", fontStyle:"italic",
-                        pointerEvents:"none", userSelect:"none",
+                {/* Visual page-break lines drawn every PAGE_H px.
+                    These are pure overlays — they don't affect layout or cursor. */}
+                {Array.from({ length: pageCount - 1 }).map((_, i) => {
+                  const breakY = 1122 * (i + 1); // px from top of card
+                  return (
+                    <div key={i} style={{
+                      position: "absolute",
+                      left: 0, right: 0,
+                      top: `${breakY}px`,
+                      pointerEvents: "none",
+                      zIndex: 2,
+                    }}>
+                      {/* Dashed page-break line */}
+                      <div style={{
+                        borderTop: "1px dashed var(--border)",
+                        opacity: 0.6,
+                        marginLeft: "72px",
+                        marginRight: "72px",
+                      }} />
+                      {/* Page number label — floats in the right margin */}
+                      <div style={{
+                        position: "absolute",
+                        right: "12px",
+                        top: "-9px",
+                        fontSize: "9px",
+                        color: "var(--text-muted)",
+                        fontFamily: "var(--font-body)",
+                        background: editorBg || "var(--page-card-bg, #ffffff)",
+                        padding: "0 6px",
+                        opacity: 0.55,
+                        userSelect: "none",
                       }}>
-                        Continue writing on page {i + 2}…
-                      </p>
+                        {i + 2}
+                      </div>
                     </div>
-                  </div>
-                </div>
-              ))}
+                  );
+                })}
+              </div>
 
               <div style={{ height:"48px" }} />
             </div>
