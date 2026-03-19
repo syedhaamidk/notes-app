@@ -190,7 +190,35 @@ export function ExportModal({ note, onClose }: Props) {
     });
 
     if (fmt === "png") {
-      canvas.toBlob(blob => { if (blob) downloadBlob(blob, `${note.title || "note"}.png`); });
+      // Paginate PNG the same way as PDF — one file per page
+      const size = PAGE_SIZES.find(s => s.id === pageSize) ?? PAGE_SIZES[0];
+      const scaleRatio        = canvas.width / size.widthPt;   // canvas px per pt
+      const pageHeightInCanvas = size.heightPt * scaleRatio;
+      const totalPages         = Math.ceil(canvas.height / pageHeightInCanvas);
+      const title              = note.title || "note";
+
+      for (let page = 0; page < totalPages; page++) {
+        const srcY      = page * pageHeightInCanvas;
+        const srcHeight = Math.min(pageHeightInCanvas, canvas.height - srcY);
+
+        const pageCanvas = document.createElement("canvas");
+        pageCanvas.width  = canvas.width;
+        pageCanvas.height = Math.round(srcHeight);
+        const ctx = pageCanvas.getContext("2d")!;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+        ctx.drawImage(canvas, 0, srcY, canvas.width, srcHeight, 0, 0, canvas.width, srcHeight);
+
+        await new Promise<void>(resolve => {
+          pageCanvas.toBlob(blob => {
+            if (blob) {
+              const suffix = totalPages > 1 ? `-p${page + 1}` : "";
+              downloadBlob(blob, `${title}${suffix}.png`);
+            }
+            resolve();
+          });
+        });
+      }
       return;
     }
 
@@ -461,12 +489,19 @@ export function ExportModal({ note, onClose }: Props) {
   );
 
   // ── Inlined Preview (ref stays stable, no remounting) ─────────────────────
+  // Scale factor: preview panel is ~360px wide, ExportPreview renders at 600px
+  const PREVIEW_RENDER_W = 600;
   const previewContent = (
     <div className="flex-1 p-4 overflow-auto" style={{ background:"var(--bg)" }}>
       <p style={{ fontSize:"10px", color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:"10px" }}>Preview</p>
-      {/* Use a container that scales the preview proportionally without overflowing */}
       <div style={{ width:"100%", overflowX:"hidden" }}>
-        <div style={{ transform:"scale(0.78)", transformOrigin:"top left", width:"128.2%", pointerEvents:"none" }}>
+        {/* Scale the 600px-wide preview to fit the ~360px panel */}
+        <div style={{
+          transform: `scale(${(isMobile ? 320 : 358) / PREVIEW_RENDER_W})`,
+          transformOrigin: "top left",
+          width: `${PREVIEW_RENDER_W}px`,
+          pointerEvents: "none",
+        }}>
           <ExportPreview
             ref={previewRef}
             note={note}
@@ -474,6 +509,7 @@ export function ExportModal({ note, onClose }: Props) {
             layoutTemplate={layoutTemplate}
             customBg={customBg}
             showWatermark={showWatermark}
+            pageSize={pageSize}
             overrideContent={useGenerated && generatedContent ? generatedContent : undefined}
           />
         </div>
@@ -634,8 +670,15 @@ function WeeklyLayout({ accent, textColor }: { accent: string; textColor: string
 const ExportPreview = React.forwardRef<HTMLDivElement, {
   note: Note; template: Template; layoutTemplate: LayoutTemplate;
   customBg: string|null; showWatermark: boolean; overrideContent?: string;
-}>(({ note, template, layoutTemplate, customBg, showWatermark, overrideContent }, ref) => {
+  pageSize: PageSizeId;
+}>(({ note, template, layoutTemplate, customBg, showWatermark, overrideContent, pageSize }, ref) => {
   const date = dateFns(new Date(note.updatedAt), "MMMM d, yyyy");
+
+  // Derive preview width from the selected page size so aspect ratio is correct.
+  // We use a fixed preview width of 600px and compute height from pt ratio.
+  const PREVIEW_W = 600;
+  const size = PAGE_SIZES.find(s => s.id === pageSize) ?? PAGE_SIZES[0];
+  const previewH = Math.round(PREVIEW_W * size.heightPt / size.widthPt);
   // Strip dark-theme inline styles from editor content so it renders cleanly in export
   const rawHtml = overrideContent || note.content || "";
   const contentHtml = rawHtml
@@ -647,13 +690,23 @@ const ExportPreview = React.forwardRef<HTMLDivElement, {
       return match.replace(/background(-color)?:[^;"]*(;|(?="))/g, "").replace(/style=""/, "");
     });
 
+  const baseStyle: React.CSSProperties = {
+    width: `${PREVIEW_W}px`,
+    minHeight: `${previewH}px`,
+    fontFamily: "Georgia,serif",
+    position: "relative",
+    overflow: "hidden",
+    overflowWrap: "break-word",
+    wordBreak: "break-word",
+  };
+
   const styles: Record<Template, React.CSSProperties> = {
-    minimal:  { background:"#ffffff",                                         padding:"56px 52px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#1a1916", position:"relative", overflow:"hidden", overflowWrap:"break-word", wordBreak:"break-word" },
-    journal:  { background:"linear-gradient(160deg,#fdf6e3,#f5e8cc)",         padding:"52px 48px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#3d2e1e", position:"relative", overflow:"hidden", overflowWrap:"break-word", wordBreak:"break-word" },
-    dark:     { background:"#1a1916",                                         padding:"56px 52px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#e8e4dc", position:"relative", overflow:"hidden", overflowWrap:"break-word", wordBreak:"break-word" },
-    pastel:   { background:"linear-gradient(145deg,#f5f0ff,#fce7f3)",         padding:"52px 48px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#2d1b4e", position:"relative", overflow:"hidden", overflowWrap:"break-word", wordBreak:"break-word" },
-    elegant:  { background:"#f7f3ee", borderLeft:"4px solid #c4a882",         padding:"56px 52px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#2a2420", position:"relative", overflow:"hidden", overflowWrap:"break-word", wordBreak:"break-word" },
-    custom:   {                                                                padding:"56px 52px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#1a1916", position:"relative", overflow:"hidden", overflowWrap:"break-word", wordBreak:"break-word" },
+    minimal:  { ...baseStyle, background:"#ffffff",                               padding:"56px 52px", color:"#1a1916" },
+    journal:  { ...baseStyle, background:"linear-gradient(160deg,#fdf6e3,#f5e8cc)", padding:"52px 48px", color:"#3d2e1e" },
+    dark:     { ...baseStyle, background:"#1a1916",                               padding:"56px 52px", color:"#e8e4dc" },
+    pastel:   { ...baseStyle, background:"linear-gradient(145deg,#f5f0ff,#fce7f3)", padding:"52px 48px", color:"#2d1b4e" },
+    elegant:  { ...baseStyle, background:"#f7f3ee", borderLeft:"4px solid #c4a882", padding:"56px 52px", color:"#2a2420" },
+    custom:   { ...baseStyle,                                                      padding:"56px 52px", color:"#1a1916" },
   };
 
   const accents: Record<Template,string> = {
