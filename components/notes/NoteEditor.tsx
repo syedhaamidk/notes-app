@@ -1093,16 +1093,14 @@ function ImageResizer({ img, rect, onResize, onDone, onDelete, onDeselect }: {
   onDelete: () => void;
   onDeselect: () => void;
 }) {
-  const { useEffect: ue, useCallback: ucb } = React;
-
   // Close on Escape
-  ue(() => {
+  useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onDeselect(); };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [onDeselect]);
 
-  const startResize = ucb((e: React.MouseEvent | React.TouchEvent, handle: HandlePos) => {
+  const startResize = useCallback((e: React.MouseEvent | React.TouchEvent, handle: HandlePos) => {
     e.preventDefault();
     e.stopPropagation();
 
