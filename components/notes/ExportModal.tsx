@@ -519,11 +519,14 @@ export function ExportModal({ note, onClose }: Props) {
   );
 
   // ── Inlined Preview (ref stays stable, no remounting) ─────────────────────
-  // Scale factor: preview panel is ~360px wide, ExportPreview renders at 600px
   const PREVIEW_RENDER_W = 600;
   const previewContent = (
-    <div className="flex-1 p-4 overflow-auto" style={{ background:"var(--bg)" }}>
-      <p style={{ fontSize:"10px", color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:"10px" }}>Preview</p>
+    <div className="flex-1 p-4 overflow-auto" style={{
+      // Never use var(--bg) here — in dark mode that's #0a0a0a and the
+      // white preview card becomes invisible. Always use a neutral mid-grey.
+      background: "#c8c8c8",
+    }}>
+      <p style={{ fontSize:"10px", color:"#555", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:"10px" }}>Preview</p>
       <div style={{ width:"100%", overflow:"hidden" }}>
         {/* Scale the 600px-wide preview to fit the ~360px panel */}
         <div style={{
@@ -531,6 +534,8 @@ export function ExportModal({ note, onClose }: Props) {
           transformOrigin: "top left",
           width: `${PREVIEW_RENDER_W}px`,
           pointerEvents: "none",
+          // Drop shadow so the white card lifts off the grey canvas
+          filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.18))",
         }}>
           <ExportPreview
             ref={previewRef}
