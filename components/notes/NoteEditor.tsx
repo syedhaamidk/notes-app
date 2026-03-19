@@ -7,7 +7,9 @@ import {
   Tag as TagIcon, Smile, Palette, Download, Copy,
   Bold, Italic, Underline, List, ListOrdered,
   Quote, Code, Minus, Link, Image as ImageIcon,
-  Check, X, Table, Sparkles, Mic, RotateCcw, CheckSquare
+  Check, X, Table, Sparkles, Mic, RotateCcw, CheckSquare,
+  AlignLeft, AlignCenter, AlignRight,
+  ArrowLeftFromLine, ArrowRightFromLine, ArrowLeftRight
 } from "lucide-react";
 import { ExportModal } from "../export/ExportModal";
 import { VoiceRecorder } from "./VoiceRecorder";
@@ -1132,6 +1134,7 @@ function ImageResizer({ img, rect, onResize, onDone, onDelete, onDeselect }: {
       else if (handle === "n") newW = Math.max(60, startH - dy) * aspect;
 
       img.style.width = `${Math.round(newW)}px`;
+      img.style.maxWidth = "none"; // clear CSS max-width: 100% so image can grow
       img.style.height = "auto";
       onResize();
     };
@@ -1240,13 +1243,17 @@ function ImageResizer({ img, rect, onResize, onDone, onDelete, onDeselect }: {
         <div style={{ width:1, height:16, background:"var(--border)", margin:"0 2px" }} />
 
         {/* Alignment */}
-        {(["left","center","right"] as const).map(a => (
-          <button key={a} onClick={() => setAlign(a)} title={`Align ${a}`}
-            style={{ padding:"3px 7px", borderRadius:"6px", border:"none", background:"transparent",
-              color:"var(--text-secondary)", cursor:"pointer", fontSize:"13px" }}
+        {([
+          { a: "left",   Icon: ArrowLeftFromLine,  title: "Align left"   },
+          { a: "center", Icon: ArrowLeftRight,      title: "Center"       },
+          { a: "right",  Icon: ArrowRightFromLine,  title: "Align right"  },
+        ] as const).map(({ a, Icon, title }) => (
+          <button key={a} onClick={() => setAlign(a)} title={title}
+            style={{ padding:"4px 6px", borderRadius:"6px", border:"none", background:"transparent",
+              color:"var(--text-secondary)", cursor:"pointer", display:"flex", alignItems:"center" }}
             onMouseEnter={e => (e.currentTarget.style.background = "var(--surface-hover)")}
             onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-            {a === "left" ? "⬛▭▭" : a === "center" ? "▭⬛▭" : "▭▭⬛"}
+            <Icon size={13} />
           </button>
         ))}
         <div style={{ width:1, height:16, background:"var(--border)", margin:"0 2px" }} />
@@ -1257,6 +1264,7 @@ function ImageResizer({ img, rect, onResize, onDone, onDelete, onDeselect }: {
             const parent = img.parentElement;
             const maxW = parent ? parent.offsetWidth : 600;
             img.style.width = `${Math.round(maxW * pct / 100)}px`;
+            img.style.maxWidth = "none";
             img.style.height = "auto";
             onDone();
           }}

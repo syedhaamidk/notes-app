@@ -82,11 +82,15 @@ body {
   overflow-x: hidden;
 }
 
-/* Apply to every child element too so nothing escapes */
-.rich-editor * {
+/* Apply word-break to every child so no text element can overflow */
+.rich-editor *:not(img) {
   overflow-wrap: break-word;
   word-break: break-word;
-  max-width: 100%;
+}
+/* Images default to contained but can be overridden by inline style during resize */
+.rich-editor img {
+  height: auto;
+  display: block;
 }
 
 .rich-editor:focus { outline: none; }
