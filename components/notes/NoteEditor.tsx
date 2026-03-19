@@ -1089,7 +1089,9 @@ function ImageResizer({ img, rect, onResize, onDone, onDelete, onDeselect }: {
   onResize: () => void; onDone: () => void;
   onDelete: () => void; onDeselect: () => void;
 }) {
-  const { useEffect: ue, useCallback: ucb, useState: ust } = React;
+  const ue  = useEffect;
+  const ucb = useCallback;
+  const ust = useState;
 
   const getCurrentTranslate = () => {
     const m = img.style.transform?.match(/translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/);
