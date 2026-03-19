@@ -754,10 +754,21 @@ const ExportPreview = React.forwardRef<HTMLDivElement, {
   const textColor = styles[template].color as string;
   const isLayoutOnly = layoutTemplate !== "none";
 
-  // How many page-break lines to show in the preview.
-  // We don't know actual rendered height until mount, so we show enough
-  // for a long note (up to 10 pages). Lines beyond content are invisible.
-  const MAX_PREVIEW_BREAKS = 9;
+  // Track actual rendered height so we only draw page breaks that fall within content
+  const [cardH, setCardH] = React.useState(0);
+  const innerRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!innerRef.current) return;
+    const ro = new ResizeObserver(() => {
+      if (innerRef.current) setCardH(innerRef.current.scrollHeight);
+    });
+    ro.observe(innerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  // Only draw breaks at page boundaries that are within the actual content height
+  const breakCount = Math.max(0, Math.ceil(cardH / previewH) - 1);
+
   const bgColor = template === "dark" ? "#1a1916"
     : template === "journal" ? "#fdf6e3"
     : template === "pastel"  ? "#f5f0ff"
@@ -765,7 +776,12 @@ const ExportPreview = React.forwardRef<HTMLDivElement, {
     : "#ffffff";
 
   return (
-    <div ref={ref} style={{ ...styles[template], position: "relative" }}>
+    <div ref={(el) => {
+      // Attach both the forwarded export ref and our local measurement ref
+      if (typeof ref === "function") ref(el);
+      else if (ref) (ref as React.MutableRefObject<HTMLDivElement|null>).current = el;
+      (innerRef as React.MutableRefObject<HTMLDivElement|null>).current = el;
+    }} style={{ ...styles[template], position: "relative" }}>
       {template==="custom"&&customBg&&(
         <>
           <div style={{ position:"absolute", inset:0, backgroundImage:`url(${customBg})`, backgroundSize:"cover", backgroundPosition:"center" }} />
@@ -778,8 +794,8 @@ const ExportPreview = React.forwardRef<HTMLDivElement, {
       {layoutTemplate==="cornell" && <CornellLayout accent={accent} textColor={textColor} />}
       {layoutTemplate==="weekly"  && <WeeklyLayout accent={accent} textColor={textColor} />}
 
-      {/* Page-break overlays — one dashed rule per page boundary */}
-      {Array.from({ length: MAX_PREVIEW_BREAKS }).map((_, i) => (
+      {/* Page-break overlays — only rendered within actual content height */}
+      {Array.from({ length: breakCount }).map((_, i) => (
         <div key={i} style={{
           position: "absolute",
           left: 0, right: 0,
