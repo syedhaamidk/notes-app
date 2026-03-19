@@ -62,6 +62,9 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   const [localNote, setLocalNote] = useState(note);
   const [floatingToolbar, setFloatingToolbar] = useState<{ el: HTMLElement; type: "image"|"table"; x: number; y: number } | null>(null);
   const [todoStats, setTodoStats] = useState<{ done: number; total: number } | null>(null);
+  // Image selection + resize
+  const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
+  const [imgRect, setImgRect] = useState<DOMRect | null>(null);
 
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimeout = useRef<NodeJS.Timeout>();
@@ -87,6 +90,22 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     const done  = editorRef.current.querySelectorAll(".todo-item.todo-done").length;
     setTodoStats({ done, total });
   }, []);
+
+  // Keep imgRect in sync with the selected image position (scroll / resize / zoom)
+  const updateImgRect = useCallback(() => {
+    if (selectedImg) setImgRect(selectedImg.getBoundingClientRect());
+  }, [selectedImg]);
+
+  useEffect(() => {
+    if (!selectedImg) { setImgRect(null); return; }
+    updateImgRect();
+    window.addEventListener("scroll", updateImgRect, true);
+    window.addEventListener("resize", updateImgRect);
+    return () => {
+      window.removeEventListener("scroll", updateImgRect, true);
+      window.removeEventListener("resize", updateImgRect);
+    };
+  }, [selectedImg, updateImgRect]);
 
   // Init editor HTML — state lives entirely in the todo-done CSS class which
   // is persisted in innerHTML, so no extra restoration step is needed.
@@ -402,16 +421,28 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     }
   };
 
+  // Save content after the browser's native drag-drop reorders elements
+  const handleDrop = () => {
+    setSelectedImg(null);
+    setTimeout(() => handleContentChange(), 50);
+  };
+
   const handleEditorClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     const isImg = target.tagName === "IMG";
     const tbl = target.closest("table") as HTMLElement | null;
-    if (isImg || tbl) {
-      const el = isImg ? target : tbl!;
-      const rect = el.getBoundingClientRect();
-      setFloatingToolbar({ el, type: isImg ? "image" : "table", x: rect.left, y: rect.top });
+
+    if (isImg) {
+      setSelectedImg(target as HTMLImageElement);
+      setFloatingToolbar(null); // image uses its own overlay now
     } else {
-      setFloatingToolbar(null);
+      setSelectedImg(null);
+      if (tbl) {
+        const rect = tbl.getBoundingClientRect();
+        setFloatingToolbar({ el: tbl, type: "table", x: rect.left, y: rect.top });
+      } else {
+        setFloatingToolbar(null);
+      }
     }
     closeAll();
   };
@@ -673,7 +704,22 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
         <FBtn cmd="insertOrderedList"   icon={<ListOrdered size={12} />} title="Numbered list" />
         <button className="format-btn" onClick={() => fmt("formatBlock","blockquote")} title="Quote"><Quote size={12} /></button>
         <div className="format-divider" />
-        <button className="format-btn" onClick={() => { const s=window.getSelection()?.toString(); if(s) fmt("insertHTML",`<code style="background:var(--surface-hover);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:0.875em">${s}</code>`); }} title="Inline code"><Code size={12} /></button>
+        <button className="format-btn" onClick={() => {
+          // Capture selection BEFORE focus() — calling focus() clears the selection
+          const sel = window.getSelection();
+          const s = sel?.toString();
+          if (s && sel && sel.rangeCount > 0) {
+            const saved = sel.getRangeAt(0).cloneRange();
+            editorRef.current?.focus();
+            sel.removeAllRanges();
+            sel.addRange(saved);
+            document.execCommand("insertHTML", false,
+              `<code style="background:var(--surface-hover);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:0.875em">${s}</code>`);
+            handleContentChange();
+          } else {
+            toast.error("Select some text first");
+          }
+        }} title="Inline code"><Code size={12} /></button>
         <button className="format-btn" onClick={() => fmt("removeFormat")} title="Remove formatting"><RotateCcw size={12} /></button>
       </div>
 
@@ -785,6 +831,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
               onMouseDown={handleEditorMouseDown}
               onClick={handleEditorClick}
               onKeyDown={handleEditorKeyDown}
+              onDrop={handleDrop}
               onPaste={e => {
                 e.preventDefault();
                 const html = e.clipboardData.getData("text/html");
@@ -851,6 +898,23 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
       )}
 
       {showExport && <ExportModal note={localNote} onClose={() => setShowExport(false)} />}
+
+      {/* Image resize overlay — rendered outside contenteditable so it's never saved */}
+      {selectedImg && imgRect && (
+        <ImageResizer
+          img={selectedImg}
+          rect={imgRect}
+          onResize={updateImgRect}
+          onDone={() => { handleContentChange(); updateImgRect(); }}
+          onDelete={() => {
+            selectedImg.parentNode?.removeChild(selectedImg);
+            setSelectedImg(null);
+            handleContentChange();
+            toast.success("Image deleted");
+          }}
+          onDeselect={() => setSelectedImg(null)}
+        />
+      )}
 
       {/* Floating element toolbar */}
       {floatingToolbar && (
@@ -1001,5 +1065,221 @@ function AIPanel({ actions, loading, currentAction, result, onAction, onApply, o
         </div>
       )}
     </div>
+  );
+}
+
+// ── Image resize + alignment overlay ─────────────────────────────────────────
+// Rendered outside the contenteditable so none of its DOM is ever saved to HTML.
+// Handles: 4 corners (proportional resize) + 4 edges (free resize).
+// Alignment: float left / center / float right.
+// Mobile: same handles respond to touch events.
+type HandlePos = "nw"|"n"|"ne"|"e"|"se"|"s"|"sw"|"w";
+const HANDLE_CURSORS: Record<HandlePos, string> = {
+  nw:"nw-resize", n:"n-resize", ne:"ne-resize", e:"e-resize",
+  se:"se-resize", s:"s-resize", sw:"sw-resize", w:"w-resize",
+};
+const HANDLE_POSITIONS: Record<HandlePos, React.CSSProperties> = {
+  nw:{ top:-5, left:-5 }, n:{ top:-5, left:"50%", transform:"translateX(-50%)" },
+  ne:{ top:-5, right:-5 }, e:{ top:"50%", right:-5, transform:"translateY(-50%)" },
+  se:{ bottom:-5, right:-5 }, s:{ bottom:-5, left:"50%", transform:"translateX(-50%)" },
+  sw:{ bottom:-5, left:-5 }, w:{ top:"50%", left:-5, transform:"translateY(-50%)" },
+};
+
+function ImageResizer({ img, rect, onResize, onDone, onDelete, onDeselect }: {
+  img: HTMLImageElement;
+  rect: DOMRect;
+  onResize: () => void;
+  onDone: () => void;
+  onDelete: () => void;
+  onDeselect: () => void;
+}) {
+  const { useEffect: ue, useCallback: ucb } = React;
+
+  // Close on Escape
+  ue(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onDeselect(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onDeselect]);
+
+  const startResize = ucb((e: React.MouseEvent | React.TouchEvent, handle: HandlePos) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const isTouch = "touches" in e;
+    const getXY = (ev: MouseEvent | TouchEvent) =>
+      "touches" in ev
+        ? { x: ev.touches[0].clientX, y: ev.touches[0].clientY }
+        : { x: (ev as MouseEvent).clientX, y: (ev as MouseEvent).clientY };
+
+    const start = getXY(isTouch ? (e as React.TouchEvent).nativeEvent : (e as React.MouseEvent).nativeEvent);
+    const startW = img.offsetWidth;
+    const startH = img.offsetHeight;
+    const aspect = startW / startH;
+
+    const onMove = (ev: MouseEvent | TouchEvent) => {
+      const cur = getXY(ev);
+      const dx = cur.x - start.x;
+      const dy = cur.y - start.y;
+
+      let newW = startW;
+
+      // Corner handles: proportional resize driven by horizontal delta
+      if (handle === "se" || handle === "ne") newW = Math.max(60, startW + dx);
+      else if (handle === "sw" || handle === "nw") newW = Math.max(60, startW - dx);
+      // Edge handles: free in one axis
+      else if (handle === "e") newW = Math.max(60, startW + dx);
+      else if (handle === "w") newW = Math.max(60, startW - dx);
+      else if (handle === "s") newW = Math.max(60, startH + dy) * aspect;
+      else if (handle === "n") newW = Math.max(60, startH - dy) * aspect;
+
+      img.style.width = `${Math.round(newW)}px`;
+      img.style.height = "auto";
+      onResize();
+    };
+
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onUp);
+      onDone();
+    };
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onUp);
+  }, [img, onResize, onDone]);
+
+  const setAlign = (align: "left"|"center"|"right") => {
+    if (align === "left") {
+      img.style.float = "left"; img.style.display = "";
+      img.style.marginRight = "16px"; img.style.marginLeft = "0";
+      img.style.marginBottom = "8px";
+    } else if (align === "right") {
+      img.style.float = "right"; img.style.display = "";
+      img.style.marginLeft = "16px"; img.style.marginRight = "0";
+      img.style.marginBottom = "8px";
+    } else {
+      img.style.float = ""; img.style.display = "block";
+      img.style.marginLeft = "auto"; img.style.marginRight = "auto";
+    }
+    onDone();
+  };
+
+  const HANDLES: HandlePos[] = ["nw","n","ne","e","se","s","sw","w"];
+  const TOOLBAR_H = 36;
+  const toolbarTop = rect.top - TOOLBAR_H - 8;
+  const toolbarLeft = rect.left;
+
+  return (
+    <>
+      {/* Backdrop click to deselect */}
+      <div
+        style={{ position:"fixed", inset:0, zIndex:98 }}
+        onMouseDown={onDeselect}
+      />
+
+      {/* Selection border + handles */}
+      <div
+        style={{
+          position: "fixed",
+          top: rect.top,
+          left: rect.left,
+          width: rect.width,
+          height: rect.height,
+          zIndex: 99,
+          pointerEvents: "none",
+          outline: "2px solid #5DCAA5",
+          outlineOffset: "1px",
+          borderRadius: "2px",
+        }}
+      >
+        {HANDLES.map(h => (
+          <div
+            key={h}
+            style={{
+              position: "absolute",
+              width: 10, height: 10,
+              background: "#fff",
+              border: "2px solid #5DCAA5",
+              borderRadius: "2px",
+              cursor: HANDLE_CURSORS[h],
+              pointerEvents: "all",
+              zIndex: 100,
+              ...HANDLE_POSITIONS[h],
+            }}
+            onMouseDown={e => startResize(e, h)}
+            onTouchStart={e => startResize(e, h)}
+          />
+        ))}
+      </div>
+
+      {/* Toolbar above the image */}
+      <div
+        style={{
+          position: "fixed",
+          top: Math.max(8, toolbarTop),
+          left: Math.max(8, toolbarLeft),
+          zIndex: 101,
+          display: "flex",
+          alignItems: "center",
+          gap: "2px",
+          background: "var(--surface-elevated, #1f1f1f)",
+          border: "1px solid var(--border)",
+          borderRadius: "10px",
+          padding: "4px 6px",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+          pointerEvents: "all",
+        }}
+        onMouseDown={e => e.stopPropagation()}
+      >
+        {/* Size readout */}
+        <span style={{ fontSize:"10px", color:"var(--text-muted)", padding:"0 4px", userSelect:"none" }}>
+          {Math.round(img.offsetWidth)} × {Math.round(img.offsetHeight)}
+        </span>
+        <div style={{ width:1, height:16, background:"var(--border)", margin:"0 2px" }} />
+
+        {/* Alignment */}
+        {(["left","center","right"] as const).map(a => (
+          <button key={a} onClick={() => setAlign(a)} title={`Align ${a}`}
+            style={{ padding:"3px 7px", borderRadius:"6px", border:"none", background:"transparent",
+              color:"var(--text-secondary)", cursor:"pointer", fontSize:"13px" }}
+            onMouseEnter={e => (e.currentTarget.style.background = "var(--surface-hover)")}
+            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+            {a === "left" ? "⬛▭▭" : a === "center" ? "▭⬛▭" : "▭▭⬛"}
+          </button>
+        ))}
+        <div style={{ width:1, height:16, background:"var(--border)", margin:"0 2px" }} />
+
+        {/* Width presets */}
+        {[25,50,75,100].map(pct => (
+          <button key={pct} onClick={() => {
+            const parent = img.parentElement;
+            const maxW = parent ? parent.offsetWidth : 600;
+            img.style.width = `${Math.round(maxW * pct / 100)}px`;
+            img.style.height = "auto";
+            onDone();
+          }}
+            style={{ padding:"3px 6px", borderRadius:"6px", border:"none", background:"transparent",
+              color:"var(--text-secondary)", cursor:"pointer", fontSize:"10px", fontFamily:"var(--font-body)" }}
+            onMouseEnter={e => (e.currentTarget.style.background = "var(--surface-hover)")}
+            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+            {pct}%
+          </button>
+        ))}
+        <div style={{ width:1, height:16, background:"var(--border)", margin:"0 2px" }} />
+
+        {/* Delete */}
+        <button onClick={onDelete} title="Delete image"
+          style={{ padding:"3px 7px", borderRadius:"6px", border:"none", background:"transparent",
+            color:"#cc0000", cursor:"pointer", fontSize:"13px" }}
+          onMouseEnter={e => (e.currentTarget.style.background = "rgba(204,0,0,0.08)")}
+          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+          ✕
+        </button>
+      </div>
+    </>
   );
 }
