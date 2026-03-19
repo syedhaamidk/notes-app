@@ -106,6 +106,9 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimeout = useRef<NodeJS.Timeout>();
   const titleRef = useRef(title);
+  // Always tracks the latest editor HTML — used to restore content after
+  // a mode switch which unmounts and remounts the contenteditable div
+  const latestContent = useRef(note.content || "");
   useEffect(() => { titleRef.current = title; }, [title]);
 
   useEffect(() => {
@@ -144,8 +147,15 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     };
   }, [selectedImg, updateImgRect]);
 
-  // Init editor HTML — state lives entirely in the todo-done CSS class which
-  // is persisted in innerHTML, so no extra restoration step is needed.
+  // Restore editor content after a mode switch.
+  // When pageMode toggles the contenteditable div unmounts and remounts
+  // as a fresh empty element — we need to put the content back.
+  useEffect(() => {
+    if (editorRef.current) {
+      editorRef.current.innerHTML = latestContent.current;
+      computeTodoStats();
+    }
+  }, [pageMode]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (editorRef.current) {
       editorRef.current.innerHTML = note.content || "";
@@ -177,6 +187,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
 
   const handleContentChange = useCallback(() => {
     const content = editorRef.current?.innerHTML || "";
+    latestContent.current = content; // always keep latest for restore after mode switch
     const text = editorRef.current?.innerText || "";
     const wc = text.trim() ? text.trim().split(/\s+/).length : 0;
     setWordCount(wc);
