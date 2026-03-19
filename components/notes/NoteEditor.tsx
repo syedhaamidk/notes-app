@@ -740,17 +740,31 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
         }} style={{ marginLeft:"auto", fontSize:"10px", color:"var(--text-muted)", padding:"0 8px" }}>Clear</button>
       </div>
 
-      {/* Main content area */}
+      {/* Main content area — paged document layout */}
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 overflow-y-auto" onClick={closeAll}>
+        {/* Page canvas — grey background like a word processor */}
+        <div className="flex-1 overflow-y-auto page-canvas" onClick={closeAll}
+          style={{ background:"var(--page-canvas-bg, #e8e8e8)" }}>
+
           {localNote.coverImage && (
-            <div style={{ width:"100%", height:"180px", overflow:"hidden", position:"relative" }}>
+            <div style={{ width:"100%", height:"160px", overflow:"hidden", position:"relative", flexShrink:0 }}>
               <img src={localNote.coverImage} alt="Cover" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
-              <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, transparent 50%, var(--surface))" }} />
+              <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, transparent 50%, var(--page-canvas-bg, #e8e8e8))" }} />
             </div>
           )}
-          <div className="max-w-2xl mx-auto px-6 py-6 md:px-10 pb-24 md:pb-8">
-            {/* Tags display */}
+
+          {/* The page card — A4-proportion white sheet */}
+          <div className="note-page" style={{
+            background: editorBg || "#ffffff",
+            margin: "24px auto",
+            width: "min(210mm, calc(100% - 48px))",
+            minHeight: "297mm",
+            borderRadius: "2px",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.08)",
+            padding: "72px 80px",
+            position: "relative",
+          }}>
+            {/* Tags */}
             {localNote.tags.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-4">
                 {localNote.tags.map(nt => (
@@ -762,7 +776,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
               </div>
             )}
 
-            {/* Emoji display */}
+            {/* Emoji */}
             {localNote.emoji && (
               <div className="mb-3">
                 <span style={{ fontSize:"44px" }}>{localNote.emoji}</span>
@@ -789,34 +803,19 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
               {localNote.isArchived && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📦 Archived</span>}
             </div>
 
-            {/* Todo progress bar — rendered in React so it isn't part of the
-                saved HTML and doesn't inflate word count */}
+            {/* Todo progress bar */}
             {todoStats && (
-              <div style={{
-                display: "flex", alignItems: "center", gap: "10px",
-                marginBottom: "20px",
-              }}>
-                <div style={{
-                  flex: 1, height: "3px", borderRadius: "2px",
-                  background: "var(--border)", overflow: "hidden",
-                }}>
+              <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"20px" }}>
+                <div style={{ flex:1, height:"3px", borderRadius:"2px", background:"var(--border)", overflow:"hidden" }}>
                   <div style={{
-                    height: "100%", borderRadius: "2px",
-                    background: todoStats.done === todoStats.total
-                      ? "#5DCAA5"
-                      : "var(--text)",
-                    width: `${Math.round((todoStats.done / todoStats.total) * 100)}%`,
-                    transition: "width 0.3s ease, background 0.3s ease",
+                    height:"100%", borderRadius:"2px",
+                    background: todoStats.done === todoStats.total ? "#5DCAA5" : "var(--text)",
+                    width:`${Math.round((todoStats.done/todoStats.total)*100)}%`,
+                    transition:"width 0.3s ease, background 0.3s ease",
                   }} />
                 </div>
-                <span style={{
-                  fontSize: "11px", color: "var(--text-muted)",
-                  fontFamily: "var(--font-body)", whiteSpace: "nowrap",
-                  tabularNums: true,
-                } as React.CSSProperties}>
-                  {todoStats.done} / {todoStats.total}
-                  {" · "}
-                  {Math.round((todoStats.done / todoStats.total) * 100)}%
+                <span style={{ fontSize:"11px", color:"var(--text-muted)", fontFamily:"var(--font-body)", whiteSpace:"nowrap" } as React.CSSProperties}>
+                  {todoStats.done} / {todoStats.total} · {Math.round((todoStats.done/todoStats.total)*100)}%
                 </span>
               </div>
             )}
@@ -844,22 +843,23 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
             />
             {wordCount === 0 && (
               <p style={{
-                fontFamily: "var(--font-display)", fontSize: "14px",
-                color: "var(--text-muted)", marginTop: "12px",
-                pointerEvents: "none", userSelect: "none", opacity: 0.45,
+                fontFamily:"var(--font-display)", fontSize:"14px",
+                color:"var(--text-muted)", marginTop:"12px",
+                pointerEvents:"none", userSelect:"none", opacity:0.45,
               }}>
                 Press{" "}
                 <kbd style={{
-                  background: "var(--surface-hover)",
-                  border: "1px solid var(--border-light)",
-                  borderRadius: "4px", padding: "1px 6px",
-                  fontSize: "12px", fontFamily: "var(--font-mono)",
-                  color: "var(--text-muted)",
+                  background:"var(--surface-hover)", border:"1px solid var(--border-light)",
+                  borderRadius:"4px", padding:"1px 6px", fontSize:"12px",
+                  fontFamily:"var(--font-mono)", color:"var(--text-muted)",
                 }}>/</kbd>
                 {" "}for commands, or just start writing…
               </p>
             )}
           </div>
+
+          {/* Bottom breathing room */}
+          <div style={{ height:"48px" }} />
         </div>
 
         {/* Footer stats */}
