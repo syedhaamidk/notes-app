@@ -749,8 +749,18 @@ const ExportPreview = React.forwardRef<HTMLDivElement, {
   const textColor = styles[template].color as string;
   const isLayoutOnly = layoutTemplate !== "none";
 
+  // How many page-break lines to show in the preview.
+  // We don't know actual rendered height until mount, so we show enough
+  // for a long note (up to 10 pages). Lines beyond content are invisible.
+  const MAX_PREVIEW_BREAKS = 9;
+  const bgColor = template === "dark" ? "#1a1916"
+    : template === "journal" ? "#fdf6e3"
+    : template === "pastel"  ? "#f5f0ff"
+    : template === "elegant" ? "#f7f3ee"
+    : "#ffffff";
+
   return (
-    <div ref={ref} style={styles[template]}>
+    <div ref={ref} style={{ ...styles[template], position: "relative" }}>
       {template==="custom"&&customBg&&(
         <>
           <div style={{ position:"absolute", inset:0, backgroundImage:`url(${customBg})`, backgroundSize:"cover", backgroundPosition:"center" }} />
@@ -762,6 +772,40 @@ const ExportPreview = React.forwardRef<HTMLDivElement, {
       {layoutTemplate==="bullet"  && <DotGridLayout accent={accent} />}
       {layoutTemplate==="cornell" && <CornellLayout accent={accent} textColor={textColor} />}
       {layoutTemplate==="weekly"  && <WeeklyLayout accent={accent} textColor={textColor} />}
+
+      {/* Page-break overlays — one dashed rule per page boundary */}
+      {Array.from({ length: MAX_PREVIEW_BREAKS }).map((_, i) => (
+        <div key={i} style={{
+          position: "absolute",
+          left: 0, right: 0,
+          top: `${previewH * (i + 1)}px`,
+          height: "20px",
+          pointerEvents: "none",
+          zIndex: 10,
+        }}>
+          <div style={{
+            position: "absolute",
+            top: "9px", left: "48px", right: "48px",
+            height: 0,
+            borderTop: `1.5px dashed ${accent}`,
+            opacity: 0.35,
+          }} />
+          {/* page number chip */}
+          <div style={{
+            position: "absolute",
+            right: "8px", top: "1px",
+            fontSize: "8px",
+            color: textColor,
+            opacity: 0.4,
+            fontFamily: "Georgia,serif",
+            background: bgColor,
+            padding: "0 5px",
+            letterSpacing: "0.06em",
+          }}>
+            {i + 2}
+          </div>
+        </div>
+      ))}
 
       <div style={{ position:"relative", zIndex:1 }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"4px" }}>

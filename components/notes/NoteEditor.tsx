@@ -938,39 +938,47 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
               >
                 {innerContent}
 
-                {/* Visual page-break lines drawn every PAGE_H px.
-                    These are pure overlays — they don't affect layout or cursor. */}
+                {/* Visual page-break lines — one per page boundary.
+                    position:absolute overlays, pointerEvents:none so cursor works through them. */}
                 {Array.from({ length: pageCount - 1 }).map((_, i) => {
-                  const breakY = 1122 * (i + 1); // px from top of card
+                  const breakY = 1122 * (i + 1);
                   return (
                     <div key={i} style={{
                       position: "absolute",
                       left: 0, right: 0,
                       top: `${breakY}px`,
+                      height: "24px",           // tall enough to contain label + line
                       pointerEvents: "none",
                       zIndex: 2,
                     }}>
-                      {/* Dashed page-break line */}
-                      <div style={{
-                        borderTop: "1px dashed var(--border)",
-                        opacity: 0.6,
-                        marginLeft: "72px",
-                        marginRight: "72px",
-                      }} />
-                      {/* Page number label — floats in the right margin */}
+                      {/* Full-width dashed rule */}
                       <div style={{
                         position: "absolute",
-                        right: "12px",
-                        top: "-9px",
+                        top: "11px",             // vertically centred in the 24px band
+                        left: "64px",
+                        right: "64px",
+                        height: "0",
+                        borderTop: "1.5px dashed",
+                        borderColor: "var(--border)",
+                        opacity: 0.7,
+                      }} />
+                      {/* "Page N" chip — sits on top of the line in the right gutter */}
+                      <div style={{
+                        position: "absolute",
+                        right: "4px",
+                        top: "2px",
                         fontSize: "9px",
                         color: "var(--text-muted)",
                         fontFamily: "var(--font-body)",
                         background: editorBg || "var(--page-card-bg, #ffffff)",
-                        padding: "0 6px",
-                        opacity: 0.55,
+                        padding: "1px 7px",
+                        borderRadius: "999px",
+                        border: "0.5px solid var(--border)",
+                        opacity: 0.7,
                         userSelect: "none",
+                        letterSpacing: "0.04em",
                       }}>
-                        {i + 2}
+                        pg {i + 2}
                       </div>
                     </div>
                   );
