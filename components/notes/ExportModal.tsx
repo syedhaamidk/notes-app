@@ -130,27 +130,27 @@ export function ExportModal({ note, onClose }: Props) {
     URL.revokeObjectURL(url);
   };
 
-  // Proper HTML → Markdown conversion (preserves headings, bold, italic, lists)
+  // Proper HTML → Markdown conversion (handles multi-line content inside tags)
   const htmlToMarkdown = (html: string): string => {
     return html
-      .replace(/<h1[^>]*>(.*?)<\/h1>/gi, "# $1\n\n")
-      .replace(/<h2[^>]*>(.*?)<\/h2>/gi, "## $1\n\n")
-      .replace(/<h3[^>]*>(.*?)<\/h3>/gi, "### $1\n\n")
-      .replace(/<strong[^>]*>(.*?)<\/strong>/gi, "**$1**")
-      .replace(/<b[^>]*>(.*?)<\/b>/gi, "**$1**")
-      .replace(/<em[^>]*>(.*?)<\/em>/gi, "_$1_")
-      .replace(/<i[^>]*>(.*?)<\/i>/gi, "_$1_")
-      .replace(/<s[^>]*>(.*?)<\/s>/gi, "~~$1~~")
-      .replace(/<code[^>]*>(.*?)<\/code>/gi, "`$1`")
-      .replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, "[$2]($1)")
-      .replace(/<li[^>]*>(.*?)<\/li>/gi, "- $1\n")
+      .replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, "# $1\n\n")
+      .replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, "## $1\n\n")
+      .replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, "### $1\n\n")
+      .replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, "**$1**")
+      .replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, "**$1**")
+      .replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, "_$1_")
+      .replace(/<i[^>]*>([\s\S]*?)<\/i>/gi, "_$1_")
+      .replace(/<s[^>]*>([\s\S]*?)<\/s>/gi, "~~$1~~")
+      .replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, "`$1`")
+      .replace(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, "[$2]($1)")
+      .replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, "- $1\n")
       .replace(/<ul[^>]*>/gi, "\n").replace(/<\/ul>/gi, "\n")
       .replace(/<ol[^>]*>/gi, "\n").replace(/<\/ol>/gi, "\n")
       .replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, (_, c) =>
         c.split("\n").map((l: string) => `> ${l}`).join("\n") + "\n\n")
       .replace(/<hr[^>]*>/gi, "\n---\n")
       .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<p[^>]*>(.*?)<\/p>/gi, "$1\n\n")
+      .replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, "$1\n\n")
       .replace(/<[^>]+>/g, "")
       .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
       .replace(/&nbsp;/g, " ").replace(/&#39;/g, "'").replace(/&quot;/g, '"')
@@ -177,23 +177,45 @@ export function ExportModal({ note, onClose }: Props) {
 
   const exportVisual = async (fmt: "png" | "pdf") => {
     const { default: html2canvas } = await import("html2canvas");
-    if (!previewRef.current) { toast.error("Preview not ready"); return; }
-    const el = previewRef.current;
+    if (!previewRef.current) { toast.error("Preview not ready — try again"); return; }
 
-    const canvas = await html2canvas(el, {
+    // ── Clone the preview into a hidden, unscaled, full-size container ────────
+    // The previewRef lives inside a transform:scale() parent. html2canvas reads
+    // the element's layout from the browser, which is distorted by the transform.
+    // Cloning into a position:fixed, top:-9999px, unscaled wrapper forces correct
+    // geometry. We also remove overflow:hidden so tall notes aren't clipped.
+    const clone = previewRef.current.cloneNode(true) as HTMLElement;
+    clone.style.position        = "fixed";
+    clone.style.top             = "-99999px";
+    clone.style.left            = "0";
+    clone.style.transform       = "none";
+    clone.style.overflow        = "visible";  // ensure full height is captured
+    clone.style.maxHeight       = "none";
+    clone.style.width           = `${previewRef.current.scrollWidth}px`;
+    document.body.appendChild(clone);
+
+    // Wait one frame so the browser paints the cloned element
+    await new Promise(r => requestAnimationFrame(r));
+
+    const canvas = await html2canvas(clone, {
       scale: 2,
       useCORS: true,
+      allowTaint: true,           // needed for notes containing external images
       backgroundColor: "#ffffff",
       logging: false,
-      width: el.scrollWidth,
-      height: el.scrollHeight,
+      width:  clone.scrollWidth,
+      height: clone.scrollHeight, // full content height, not clipped
+      windowWidth: clone.scrollWidth,
     });
 
+    document.body.removeChild(clone);
+
+    const size = PAGE_SIZES.find(s => s.id === pageSize) ?? PAGE_SIZES[0];
+
     if (fmt === "png") {
-      // Paginate PNG the same way as PDF — one file per page
-      const size = PAGE_SIZES.find(s => s.id === pageSize) ?? PAGE_SIZES[0];
-      const scaleRatio        = canvas.width / size.widthPt;   // canvas px per pt
-      const pageHeightInCanvas = size.heightPt * scaleRatio;
+      // One PNG file per page, named note-p1.png, note-p2.png …
+      const scaleRatio         = canvas.width / size.widthPt;
+      const pageHeightInCanvas = Math.round(size.heightPt * scaleRatio);
       const totalPages         = Math.ceil(canvas.height / pageHeightInCanvas);
       const title              = note.title || "note";
 
@@ -201,9 +223,9 @@ export function ExportModal({ note, onClose }: Props) {
         const srcY      = page * pageHeightInCanvas;
         const srcHeight = Math.min(pageHeightInCanvas, canvas.height - srcY);
 
-        const pageCanvas = document.createElement("canvas");
-        pageCanvas.width  = canvas.width;
-        pageCanvas.height = Math.round(srcHeight);
+        const pageCanvas        = document.createElement("canvas");
+        pageCanvas.width        = canvas.width;
+        pageCanvas.height       = Math.round(srcHeight); // must be integer
         const ctx = pageCanvas.getContext("2d")!;
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
@@ -222,21 +244,13 @@ export function ExportModal({ note, onClose }: Props) {
       return;
     }
 
-    // ── PDF: paginate using the selected page size ─────────────────────────────
+    // ── PDF: slice canvas into selected page-size pages ───────────────────────
     const { jsPDF } = await import("jspdf");
-    const size = PAGE_SIZES.find(s => s.id === pageSize) ?? PAGE_SIZES[0];
+    const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: [size.widthPt, size.heightPt] });
 
-    const pdf = new jsPDF({
-      orientation: "portrait",
-      unit: "pt",
-      format: [size.widthPt, size.heightPt],
-    });
-
-    const pageW = size.widthPt;
-    const pageH = size.heightPt;
-
-    // Map canvas pixels → page points
-    const scaleRatio       = pageW / canvas.width;
+    const pageW              = size.widthPt;
+    const pageH              = size.heightPt;
+    const scaleRatio         = pageW / canvas.width;
     const pageHeightInCanvas = pageH / scaleRatio;
     const totalPages         = Math.ceil(canvas.height / pageHeightInCanvas);
 
@@ -246,9 +260,9 @@ export function ExportModal({ note, onClose }: Props) {
       const srcY      = page * pageHeightInCanvas;
       const srcHeight = Math.min(pageHeightInCanvas, canvas.height - srcY);
 
-      const pageCanvas = document.createElement("canvas");
-      pageCanvas.width  = canvas.width;
-      pageCanvas.height = srcHeight;
+      const pageCanvas        = document.createElement("canvas");
+      pageCanvas.width        = canvas.width;
+      pageCanvas.height       = Math.round(srcHeight); // must be integer
       const ctx = pageCanvas.getContext("2d")!;
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
@@ -260,22 +274,31 @@ export function ExportModal({ note, onClose }: Props) {
     pdf.save(`${note.title || "note"}.pdf`);
   };
 
+  // Track mount status so we never call setState after the component unmounts
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
   const handleExport = async () => {
-    setExporting(true);
+    if (mountedRef.current) setExporting(true);
     try {
-      const title = note.title || "Untitled";
+      const title   = note.title || "Untitled";
       const content = useGenerated && generatedContent ? generatedContent : (note.content || "");
+
       if (exportFormat === "txt") {
         const body = htmlToText(content);
         downloadBlob(
-          new Blob([`${title}\n${"═".repeat(40)}\n\n${body}\n\n${"─".repeat(40)}\nExported from Nota`], { type: "text/plain" }),
+          new Blob([`${title}\n${"═".repeat(40)}\n\n${body}\n\n${"─".repeat(40)}\nExported from Nota`],
+            { type: "text/plain" }),
           `${title}.txt`
         );
+        toast.success("Exported as TXT");
+        onClose();
+
       } else if (exportFormat === "md") {
         const emoji = note.emoji ? `${note.emoji} ` : "";
-        const date = dateFns(new Date(note.updatedAt), "MMMM d, yyyy");
-        const tags = note.tags.map(nt => `\`${nt.tag.name}\``).join("  ");
-        const body = htmlToMarkdown(content);
+        const date  = dateFns(new Date(note.updatedAt), "MMMM d, yyyy");
+        const tags  = note.tags.map(nt => `\`${nt.tag.name}\``).join("  ");
+        const body  = htmlToMarkdown(content);
         downloadBlob(
           new Blob([
             `# ${emoji}${title}\n\n`,
@@ -285,13 +308,20 @@ export function ExportModal({ note, onClose }: Props) {
           ], { type: "text/markdown" }),
           `${title}.md`
         );
+        toast.success("Exported as Markdown");
+        onClose();
+
       } else {
+        // Visual export (PDF / PNG) — must complete before closing
         await exportVisual(exportFormat);
+        toast.success(`Exported as ${exportFormat.toUpperCase()}`);
+        onClose();
       }
-      toast.success(`Exported as ${exportFormat.toUpperCase()}`);
-      onClose();
-    } catch { toast.error("Export failed. Try PNG or Text format."); }
-    setExporting(false);
+    } catch (err) {
+      console.error("Export error:", err);
+      toast.error("Export failed — check console for details");
+      if (mountedRef.current) setExporting(false);
+    }
   };
 
   // Format label for the export button
@@ -494,7 +524,7 @@ export function ExportModal({ note, onClose }: Props) {
   const previewContent = (
     <div className="flex-1 p-4 overflow-auto" style={{ background:"var(--bg)" }}>
       <p style={{ fontSize:"10px", color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:"10px" }}>Preview</p>
-      <div style={{ width:"100%", overflowX:"hidden" }}>
+      <div style={{ width:"100%", overflow:"hidden" }}>
         {/* Scale the 600px-wide preview to fit the ~360px panel */}
         <div style={{
           transform: `scale(${(isMobile ? 320 : 358) / PREVIEW_RENDER_W})`,
@@ -695,7 +725,9 @@ const ExportPreview = React.forwardRef<HTMLDivElement, {
     minHeight: `${previewH}px`,
     fontFamily: "Georgia,serif",
     position: "relative",
-    overflow: "hidden",
+    // overflow must be visible so html2canvas captures the full content height.
+    // The preview panel's outer wrapper clips it visually for display.
+    overflow: "visible",
     overflowWrap: "break-word",
     wordBreak: "break-word",
   };
