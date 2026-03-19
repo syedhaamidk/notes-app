@@ -36,6 +36,21 @@ const FORMATS: { id: ExportFormat; label: string }[] = [
   { id: "md",  label: "Markdown" },
 ];
 
+// Width × height in points (1 pt = 1/72 inch).
+// "px" sizes are for PNG export at 96 dpi — we derive aspect ratio from pt.
+type PageSizeId = "a4" | "letter" | "a5" | "a3" | "square" | "story";
+const PAGE_SIZES: {
+  id: PageSizeId; label: string; sub: string;
+  widthPt: number; heightPt: number;
+}[] = [
+  { id: "a4",     label: "A4",          sub: "210 × 297 mm",   widthPt: 595.28,  heightPt: 841.89  },
+  { id: "letter", label: "Letter",      sub: "8.5 × 11 in",    widthPt: 612,     heightPt: 792     },
+  { id: "a5",     label: "A5",          sub: "148 × 210 mm",   widthPt: 419.53,  heightPt: 595.28  },
+  { id: "a3",     label: "A3",          sub: "297 × 420 mm",   widthPt: 841.89,  heightPt: 1190.55 },
+  { id: "square", label: "Square",      sub: "1:1 ratio",      widthPt: 595.28,  heightPt: 595.28  },
+  { id: "story",  label: "Story",       sub: "9:16 portrait",  widthPt: 472.44,  heightPt: 840.47  },
+];
+
 const AI_TONES = ["Professional","Casual","Creative","Academic","Minimal"];
 const AI_LENGTHS = ["Brief","Medium","Detailed"];
 
@@ -43,6 +58,7 @@ export function ExportModal({ note, onClose }: Props) {
   const [template, setTemplate] = useState<Template>("minimal");
   const [layoutTemplate, setLayoutTemplate] = useState<LayoutTemplate>("none");
   const [exportFormat, setExportFormat] = useState<ExportFormat>("pdf");
+  const [pageSize, setPageSize] = useState<PageSizeId>("a4");
   const [exporting, setExporting] = useState(false);
   const [showWatermark, setShowWatermark] = useState(true);
   const [customBg, setCustomBg] = useState<string | null>(null);
@@ -53,17 +69,23 @@ export function ExportModal({ note, onClose }: Props) {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [generatedContent, setGeneratedContent] = useState<string | null>(null);
   const [useGenerated, setUseGenerated] = useState(false);
-  // Mobile: toggle between options and preview
   const [mobileTab, setMobileTab] = useState<"options" | "preview">("options");
-  const [isMobile, setIsMobile] = useState(true); // default true = mobile-first
+  const [isMobile, setIsMobile] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
-    check(); // run immediately
+    check();
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
 
   const handleGenerate = async () => {
     if (!aiPrompt.trim()) { toast.error("Describe what you want first!"); return; }
@@ -108,49 +130,133 @@ export function ExportModal({ note, onClose }: Props) {
     URL.revokeObjectURL(url);
   };
 
+  // Proper HTML → Markdown conversion (preserves headings, bold, italic, lists)
+  const htmlToMarkdown = (html: string): string => {
+    return html
+      .replace(/<h1[^>]*>(.*?)<\/h1>/gi, "# $1\n\n")
+      .replace(/<h2[^>]*>(.*?)<\/h2>/gi, "## $1\n\n")
+      .replace(/<h3[^>]*>(.*?)<\/h3>/gi, "### $1\n\n")
+      .replace(/<strong[^>]*>(.*?)<\/strong>/gi, "**$1**")
+      .replace(/<b[^>]*>(.*?)<\/b>/gi, "**$1**")
+      .replace(/<em[^>]*>(.*?)<\/em>/gi, "_$1_")
+      .replace(/<i[^>]*>(.*?)<\/i>/gi, "_$1_")
+      .replace(/<s[^>]*>(.*?)<\/s>/gi, "~~$1~~")
+      .replace(/<code[^>]*>(.*?)<\/code>/gi, "`$1`")
+      .replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, "[$2]($1)")
+      .replace(/<li[^>]*>(.*?)<\/li>/gi, "- $1\n")
+      .replace(/<ul[^>]*>/gi, "\n").replace(/<\/ul>/gi, "\n")
+      .replace(/<ol[^>]*>/gi, "\n").replace(/<\/ol>/gi, "\n")
+      .replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, (_, c) =>
+        c.split("\n").map((l: string) => `> ${l}`).join("\n") + "\n\n")
+      .replace(/<hr[^>]*>/gi, "\n---\n")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<p[^>]*>(.*?)<\/p>/gi, "$1\n\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&nbsp;/g, " ").replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  };
+
+  // HTML → plain text (preserves list markers and heading structure)
+  const htmlToText = (html: string): string => {
+    return html
+      .replace(/<h1[^>]*>(.*?)<\/h1>/gi, "$1\n" + "═".repeat(40) + "\n\n")
+      .replace(/<h2[^>]*>(.*?)<\/h2>/gi, "$1\n" + "─".repeat(30) + "\n\n")
+      .replace(/<h3[^>]*>(.*?)<\/h3>/gi, "$1\n\n")
+      .replace(/<li[^>]*>(.*?)<\/li>/gi, "  • $1\n")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<p[^>]*>(.*?)<\/p>/gi, "$1\n\n")
+      .replace(/<hr[^>]*>/gi, "\n" + "─".repeat(40) + "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&nbsp;/g, " ").replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  };
+
   const exportVisual = async (fmt: "png" | "pdf") => {
     const { default: html2canvas } = await import("html2canvas");
-    if (!previewRef.current) return;
-    const canvas = await html2canvas(previewRef.current, {
+    if (!previewRef.current) { toast.error("Preview not ready"); return; }
+    const el = previewRef.current;
+
+    const canvas = await html2canvas(el, {
       scale: 2,
       useCORS: true,
       backgroundColor: "#ffffff",
-      ignoreElements: (el) => el.classList?.contains("todo-progress-bar") && false,
-      onclone: (doc) => {
-        // Force white backgrounds and dark text on all elements in clone
-        doc.querySelectorAll("[style]").forEach((el: Element) => {
-          const h = el as HTMLElement;
-          const bg = h.style.backgroundColor || h.style.background;
-          const isDark = bg && (bg.includes("0a0a0a") || bg.includes("0e0d0b") || bg.includes("1a1916") || bg.includes("111111") || bg.includes("rgb(10") || bg.includes("rgb(0, 0, 0)"));
-          if (isDark) { h.style.backgroundColor = ""; h.style.background = ""; }
-          const col = h.style.color;
-          const isLightText = col && (col.includes("255,255,255") || col.includes("#fff") || col.includes("#e8e4dc") || col.includes("#c8c4bc"));
-          if (isLightText) { h.style.color = "#1a1a1a"; }
-        });
-      }
+      logging: false,
+      width: el.scrollWidth,
+      height: el.scrollHeight,
     });
+
     if (fmt === "png") {
       canvas.toBlob(blob => { if (blob) downloadBlob(blob, `${note.title || "note"}.png`); });
-    } else {
-      const { jsPDF } = await import("jspdf");
-      const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: "a4" });
-      const imgData = canvas.toDataURL("image/png");
-      const pw = pdf.internal.pageSize.getWidth();
-      const ph = pdf.internal.pageSize.getHeight();
-      const ratio = Math.min(pw / canvas.width, ph / canvas.height);
-      pdf.addImage(imgData, "PNG", 0, 0, canvas.width * ratio, canvas.height * ratio);
-      pdf.save(`${note.title || "note"}.pdf`);
+      return;
     }
+
+    // ── PDF: paginate using the selected page size ─────────────────────────────
+    const { jsPDF } = await import("jspdf");
+    const size = PAGE_SIZES.find(s => s.id === pageSize) ?? PAGE_SIZES[0];
+
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "pt",
+      format: [size.widthPt, size.heightPt],
+    });
+
+    const pageW = size.widthPt;
+    const pageH = size.heightPt;
+
+    // Map canvas pixels → page points
+    const scaleRatio       = pageW / canvas.width;
+    const pageHeightInCanvas = pageH / scaleRatio;
+    const totalPages         = Math.ceil(canvas.height / pageHeightInCanvas);
+
+    for (let page = 0; page < totalPages; page++) {
+      if (page > 0) pdf.addPage([size.widthPt, size.heightPt], "portrait");
+
+      const srcY      = page * pageHeightInCanvas;
+      const srcHeight = Math.min(pageHeightInCanvas, canvas.height - srcY);
+
+      const pageCanvas = document.createElement("canvas");
+      pageCanvas.width  = canvas.width;
+      pageCanvas.height = srcHeight;
+      const ctx = pageCanvas.getContext("2d")!;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+      ctx.drawImage(canvas, 0, srcY, canvas.width, srcHeight, 0, 0, canvas.width, srcHeight);
+
+      pdf.addImage(pageCanvas.toDataURL("image/png"), "PNG", 0, 0, pageW, srcHeight * scaleRatio);
+    }
+
+    pdf.save(`${note.title || "note"}.pdf`);
   };
 
   const handleExport = async () => {
     setExporting(true);
     try {
       const title = note.title || "Untitled";
+      const content = useGenerated && generatedContent ? generatedContent : (note.content || "");
       if (exportFormat === "txt") {
-        downloadBlob(new Blob([`${title}\n${"─".repeat(40)}\n\n${note.content.replace(/<[^>]*>/g,"")}\n\n─────\nExported from Nota`], { type:"text/plain" }), `${title}.txt`);
+        const body = htmlToText(content);
+        downloadBlob(
+          new Blob([`${title}\n${"═".repeat(40)}\n\n${body}\n\n${"─".repeat(40)}\nExported from Nota`], { type: "text/plain" }),
+          `${title}.txt`
+        );
       } else if (exportFormat === "md") {
-        downloadBlob(new Blob([`# ${note.emoji||""}${title}\n\n*${dateFns(new Date(note.updatedAt),"MMMM d, yyyy")}*\n\n${note.content.replace(/<[^>]*>/g,"")}\n\n---\n*Exported from Nota*`], { type:"text/markdown" }), `${title}.md`);
+        const emoji = note.emoji ? `${note.emoji} ` : "";
+        const date = dateFns(new Date(note.updatedAt), "MMMM d, yyyy");
+        const tags = note.tags.map(nt => `\`${nt.tag.name}\``).join("  ");
+        const body = htmlToMarkdown(content);
+        downloadBlob(
+          new Blob([
+            `# ${emoji}${title}\n\n`,
+            `*${date}*${tags ? `  ·  ${tags}` : ""}\n\n`,
+            `${body}\n\n`,
+            `---\n*Exported from Nota*`,
+          ], { type: "text/markdown" }),
+          `${title}.md`
+        );
       } else {
         await exportVisual(exportFormat);
       }
@@ -160,7 +266,11 @@ export function ExportModal({ note, onClose }: Props) {
     setExporting(false);
   };
 
-  const OptionsPanel = () => (
+  // Format label for the export button
+  const FORMAT_ICONS: Record<ExportFormat, string> = { pdf: "PDF", png: "PNG", txt: "TXT", md: "MD" };
+
+  // ── Inlined Options (no inner component = no remounting) ───────────────────
+  const optionsContent = (
     <div className="p-4 space-y-5 overflow-y-auto" style={{ maxHeight: isMobile ? "calc(85vh - 140px)" : "calc(90vh - 130px)" }}>
       {/* Style */}
       <div>
@@ -170,15 +280,23 @@ export function ExportModal({ note, onClose }: Props) {
             <button key={t.id}
               onClick={() => t.id === "custom" ? handleCustomUpload() : setTemplate(t.id)}
               className="w-full flex items-center gap-3 p-2 rounded-xl transition-all"
-              style={{ background: template===t.id ? "var(--surface-hover)" : "transparent", border:`1px solid ${template===t.id ? "var(--border)" : "transparent"}` }}>
+              style={{ background:template===t.id?"var(--surface-hover)":"transparent", border:`1px solid ${template===t.id?"var(--border)":"transparent"}` }}>
               <div className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden"
-                style={{ background: t.id==="custom"&&customBg ? "transparent" : t.preview }}>
-                {t.id==="custom"&&customBg ? <img src={customBg} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : t.id==="custom"&&<Upload size={11} style={{ color:"#6b7280" }} />}
+                style={{ background:t.id==="custom"&&customBg?"transparent":t.preview }}>
+                {t.id==="custom"&&customBg
+                  ? <img src={customBg} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                  : t.id==="custom" && <Upload size={11} style={{ color:"#6b7280" }} />}
               </div>
               <div className="text-left">
                 <p style={{ fontSize:"12px", fontWeight:template===t.id?500:400, color:"var(--text)" }}>{t.label}</p>
                 <p style={{ fontSize:"10px", color:"var(--text-muted)" }}>{t.desc}</p>
               </div>
+              {template===t.id && (
+                <div className="ml-auto w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{ background:"var(--text)" }}>
+                  <span style={{ color:"var(--bg)", fontSize:"9px", lineHeight:1 }}>✓</span>
+                </div>
+              )}
             </button>
           ))}
         </div>
@@ -208,10 +326,77 @@ export function ExportModal({ note, onClose }: Props) {
               className="py-2 rounded-lg text-xs transition-all"
               style={{ background:exportFormat===f.id?"var(--text)":"var(--surface-hover)", color:exportFormat===f.id?"var(--bg)":"var(--text-secondary)", fontFamily:"var(--font-body)", border:`1px solid ${exportFormat===f.id?"var(--text)":"var(--border-light)"}` }}>
               {f.label}
+              {(f.id==="txt"||f.id==="md") && (
+                <span style={{ display:"block", fontSize:"9px", opacity:0.6, marginTop:"2px" }}>
+                  {f.id==="txt" ? "Plain text" : "With formatting"}
+                </span>
+              )}
             </button>
           ))}
         </div>
+        {/* Visual formats note */}
+        {(exportFormat==="pdf"||exportFormat==="png") && (
+          <p style={{ fontSize:"10px", color:"var(--text-muted)", marginTop:"6px", opacity:0.7 }}>
+            ↑ Exports the styled preview you see on the right
+          </p>
+        )}
+        {(exportFormat==="txt"||exportFormat==="md") && (
+          <p style={{ fontSize:"10px", color:"var(--text-muted)", marginTop:"6px", opacity:0.7 }}>
+            ↑ Exports raw content, style not applied
+          </p>
+        )}
       </div>
+
+      {/* Page Size — only relevant for PDF and PNG visual exports */}
+      {(exportFormat === "pdf" || exportFormat === "png") && (
+        <div>
+          <p style={{ fontSize:"10px", color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:"8px" }}>
+            Page Size
+          </p>
+          <div className="grid grid-cols-1 gap-1">
+            {PAGE_SIZES.map(s => (
+              <button key={s.id} onClick={() => setPageSize(s.id)}
+                className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-left"
+                style={{
+                  background: pageSize === s.id ? "var(--surface-hover)" : "transparent",
+                  border: `1px solid ${pageSize === s.id ? "var(--border)" : "transparent"}`,
+                }}>
+                {/* Visual thumbnail showing the aspect ratio */}
+                <div style={{
+                  flexShrink: 0,
+                  width: "20px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}>
+                  <div style={{
+                    background: pageSize === s.id ? "var(--text)" : "var(--border)",
+                    borderRadius: "2px",
+                    // Derive thumbnail dimensions from pt ratio, capped at 20×28
+                    width:  s.widthPt >= s.heightPt ? "20px" : `${Math.round(20 * s.widthPt / s.heightPt)}px`,
+                    height: s.heightPt >= s.widthPt ? "28px" : `${Math.round(28 * s.heightPt / s.widthPt)}px`,
+                    transition: "background 0.15s",
+                  }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span style={{ fontSize:"12px", fontWeight: pageSize===s.id ? 500 : 400, color:"var(--text)" }}>
+                    {s.label}
+                  </span>
+                  <span style={{ fontSize:"10px", color:"var(--text-muted)", marginLeft:"6px" }}>
+                    {s.sub}
+                  </span>
+                </div>
+                {pageSize === s.id && (
+                  <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background:"var(--text)" }}>
+                    <span style={{ color:"var(--bg)", fontSize:"9px", lineHeight:1 }}>✓</span>
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* AI Generate */}
       <div>
@@ -251,13 +436,17 @@ export function ExportModal({ note, onClose }: Props) {
             <button onClick={handleGenerate} disabled={aiGenerating}
               className="w-full py-2 rounded-lg text-xs flex items-center justify-center gap-2 transition-all hover:opacity-80"
               style={{ background:"#5DCAA5", color:"#fff", fontFamily:"var(--font-body)", border:"none", cursor:aiGenerating?"wait":"pointer", opacity:aiGenerating?0.7:1 }}>
-              {aiGenerating ? <><div className="w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor:"rgba(255,255,255,0.3)", borderTopColor:"#fff" }} />Generating…</> : <><Sparkles size={11} />Generate Content</>}
+              {aiGenerating
+                ? <><div className="w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor:"rgba(255,255,255,0.3)", borderTopColor:"#fff" }} />Generating…</>
+                : <><Sparkles size={11} />Generate Content</>}
             </button>
             {generatedContent && (
               <div className="animate-fade">
                 <div className="p-2 rounded-lg" style={{ background:"var(--surface-hover)", border:"1px solid var(--border)" }}>
                   <p style={{ fontSize:"10px", color:"#5DCAA5", marginBottom:"4px", fontWeight:500 }}>✓ Content ready</p>
-                  <p style={{ fontSize:"10px", color:"var(--text-muted)", lineHeight:"1.5" }}>{generatedContent.replace(/<[^>]*>/g,"").slice(0,80)}…</p>
+                  <p style={{ fontSize:"10px", color:"var(--text-muted)", lineHeight:"1.5" }}>
+                    {generatedContent.replace(/<[^>]*>/g,"").slice(0,80)}…
+                  </p>
                 </div>
                 <label className="flex items-center gap-2 mt-2 cursor-pointer">
                   <input type="checkbox" checked={useGenerated} onChange={e => setUseGenerated(e.target.checked)} style={{ accentColor:"#5DCAA5" }} />
@@ -271,22 +460,32 @@ export function ExportModal({ note, onClose }: Props) {
     </div>
   );
 
-  const PreviewPanel = () => (
+  // ── Inlined Preview (ref stays stable, no remounting) ─────────────────────
+  const previewContent = (
     <div className="flex-1 p-4 overflow-auto" style={{ background:"var(--bg)" }}>
       <p style={{ fontSize:"10px", color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:"10px" }}>Preview</p>
-      <div style={{ transform:"scale(0.82)", transformOrigin:"top left", width:"122%" }}>
-        <ExportPreview ref={previewRef} note={note} template={template} layoutTemplate={layoutTemplate}
-          customBg={customBg} showWatermark={showWatermark}
-          overrideContent={useGenerated&&generatedContent ? generatedContent : undefined} />
+      {/* Use a container that scales the preview proportionally without overflowing */}
+      <div style={{ width:"100%", overflowX:"hidden" }}>
+        <div style={{ transform:"scale(0.78)", transformOrigin:"top left", width:"128.2%", pointerEvents:"none" }}>
+          <ExportPreview
+            ref={previewRef}
+            note={note}
+            template={template}
+            layoutTemplate={layoutTemplate}
+            customBg={customBg}
+            showWatermark={showWatermark}
+            overrideContent={useGenerated && generatedContent ? generatedContent : undefined}
+          />
+        </div>
       </div>
     </div>
   );
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
-      style={{ background:"rgba(0,0,0,0.5)", backdropFilter:"blur(6px)", padding: isMobile ? "0" : "16px", alignItems: isMobile ? "flex-end" : "center" }}>
+      style={{ background:"rgba(0,0,0,0.5)", backdropFilter:"blur(6px)", padding: isMobile ? "0" : "16px" }}>
       <div className="w-full rounded-t-2xl md:rounded-2xl overflow-hidden animate-scale"
-        style={{ background:"var(--surface)", boxShadow:"var(--shadow-lg)", height: isMobile ? "92vh" : "auto", maxHeight: isMobile ? "92vh" : "88vh", maxWidth: isMobile ? "100%" : "680px", borderRadius: isMobile ? "20px 20px 0 0" : "16px" }}>
+        style={{ background:"var(--surface)", boxShadow:"var(--shadow-lg)", maxHeight: isMobile ? "90vh" : "90vh", maxWidth: isMobile ? "100%" : "680px" }}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor:"var(--border)" }}>
@@ -313,31 +512,32 @@ export function ExportModal({ note, onClose }: Props) {
 
         {/* Body */}
         {isMobile ? (
-          // Mobile: single panel, toggled
           <div style={{ height:"calc(90vh - 130px)", overflowY:"auto" }}>
-            {mobileTab === "options" ? <OptionsPanel /> : <PreviewPanel />}
+            {mobileTab === "options" ? optionsContent : previewContent}
           </div>
         ) : (
-          // Desktop: side by side
           <div className="flex overflow-auto" style={{ maxHeight:"calc(90vh - 130px)" }}>
             <div style={{ width:"260px", flexShrink:0, borderRight:"1px solid var(--border)" }}>
-              <OptionsPanel />
+              {optionsContent}
             </div>
-            <PreviewPanel />
+            {previewContent}
           </div>
         )}
 
         {/* Footer */}
         <div className="px-4 py-3 border-t flex items-center justify-between gap-2" style={{ borderColor:"var(--border)" }}>
+          {/* Watermark toggle — fixed colours so it's visible in both light and dark mode */}
           <button onClick={() => setShowWatermark(!showWatermark)}
             className="flex items-center gap-2"
             style={{ fontSize:"12px", color:"var(--text-muted)", fontFamily:"var(--font-body)", background:"none", border:"none", cursor:"pointer" }}>
             <div className="w-8 h-4 rounded-full transition-all relative flex-shrink-0"
-              style={{ background:showWatermark?"var(--text)":"var(--border)" }}>
-              <div className="absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all"
-                style={{ left:showWatermark?"calc(100% - 14px)":"2px" }} />
+              style={{ background: showWatermark ? "#5DCAA5" : "#d1d5db" }}>
+              <div className="absolute top-0.5 w-3 h-3 rounded-full transition-all"
+                style={{ left: showWatermark ? "calc(100% - 14px)" : "2px", background: "#ffffff", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }} />
             </div>
-            <span className="hidden sm:inline">{showWatermark ? "Watermark on" : "No watermark"}</span>
+            <span className="hidden sm:inline" style={{ color:"var(--text-muted)" }}>
+              {showWatermark ? "Watermark on" : "No watermark"}
+            </span>
           </button>
           <div className="flex gap-2">
             <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm"
@@ -347,8 +547,10 @@ export function ExportModal({ note, onClose }: Props) {
             <button onClick={handleExport} disabled={exporting}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm transition-all hover:opacity-80"
               style={{ background:"var(--text)", color:"var(--bg)", fontFamily:"var(--font-body)" }}>
-              {exporting ? <div className="w-3.5 h-3.5 rounded-full border-2 animate-spin" style={{ borderColor:"rgba(255,255,255,0.3)", borderTopColor:"white" }} /> : <Download size={13} />}
-              {exporting ? "Exporting…" : `Export ${exportFormat.toUpperCase()}`}
+              {exporting
+                ? <div className="w-3.5 h-3.5 rounded-full border-2 animate-spin" style={{ borderColor:"rgba(255,255,255,0.3)", borderTopColor:"white" }} />
+                : <Download size={13} />}
+              {exporting ? "Exporting…" : `Export ${FORMAT_ICONS[exportFormat]}`}
             </button>
           </div>
         </div>
@@ -434,15 +636,15 @@ const ExportPreview = React.forwardRef<HTMLDivElement, {
   customBg: string|null; showWatermark: boolean; overrideContent?: string;
 }>(({ note, template, layoutTemplate, customBg, showWatermark, overrideContent }, ref) => {
   const date = dateFns(new Date(note.updatedAt), "MMMM d, yyyy");
-  // Strip dark editor inline styles so content renders cleanly on light export backgrounds
+  // Strip dark-theme inline styles from editor content so it renders cleanly in export
   const rawHtml = overrideContent || note.content || "";
   const contentHtml = rawHtml
+    .replace(/background:\s*#[0-9a-fA-F]{3,6}[^;"']*/g, "")
+    .replace(/background-color:\s*#[0-9a-fA-F]{3,6}[^;"']*/g, "")
+    .replace(/color:\s*#(?:0a0a0a|111111|0e0d0b|1a1916|000000)[^;"']*/g, "")
     .replace(/style="[^"]*"/g, (match) => {
-      return match
-        .replace(/background(-color)?:\s*[^;"]*(;|(?="))/g, "")
-        .replace(/color:\s*(?:rgb\(10,\s*10,\s*10\)|rgb\(0,\s*0,\s*0\)|#0a0a0a|#000000|#111111|#0e0d0b|#1a1916)[^;"]*(;|(?="))/g, "")
-        .replace(/font-family:\s*[^;"]*(;|(?="))/g, "")
-        .replace(/style=""/, "");
+      // Remove background and problematic color styles
+      return match.replace(/background(-color)?:[^;"]*(;|(?="))/g, "").replace(/style=""/, "");
     });
 
   const styles: Record<Template, React.CSSProperties> = {
