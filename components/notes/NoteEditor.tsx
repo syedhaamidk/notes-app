@@ -10,7 +10,7 @@ import {
   Check, X, Table, Sparkles, Mic, RotateCcw, CheckSquare,
   AlignLeft, AlignCenter, AlignRight,
   ArrowLeftFromLine, ArrowRightFromLine, ArrowLeftRight,
-  GripVertical
+  GripVertical, FileText, LayoutTemplate
 } from "lucide-react";
 import { ExportModal } from "../export/ExportModal";
 import { VoiceRecorder } from "./VoiceRecorder";
@@ -68,6 +68,20 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   // Image selection + resize
   const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
   const [imgRect, setImgRect] = useState<DOMRect | null>(null);
+  // Page layout mode — persisted in localStorage
+  const [pageMode, setPageMode] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("nota_page_mode") === "true";
+    }
+    return false;
+  });
+  const togglePageMode = () => {
+    setPageMode(prev => {
+      const next = !prev;
+      localStorage.setItem("nota_page_mode", String(next));
+      return next;
+    });
+  };
 
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimeout = useRef<NodeJS.Timeout>();
@@ -551,6 +565,12 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
           <Sparkles size={13} />
         </button>
 
+        {/* Page / Scroll mode toggle */}
+        <TBtn onClick={togglePageMode} active={pageMode}
+          title={pageMode ? "Switch to scroll view" : "Switch to page view"}>
+          {pageMode ? <LayoutTemplate size={14} /> : <FileText size={14} />}
+        </TBtn>
+
         {/* PIN */}
         <TBtn onClick={handlePin} active={localNote.isPinned} title={localNote.isPinned ? "Unpin" : "Pin note"}>
           <Pin size={14} />
@@ -740,127 +760,152 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
         }} style={{ marginLeft:"auto", fontSize:"10px", color:"var(--text-muted)", padding:"0 8px" }}>Clear</button>
       </div>
 
-      {/* Main content area — paged document layout */}
+      {/* Main content area */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Page canvas — grey background like a word processor */}
-        <div className="flex-1 overflow-y-auto page-canvas" onClick={closeAll}
-          style={{ background:"var(--page-canvas-bg, #e8e8e8)" }}>
 
-          {localNote.coverImage && (
-            <div style={{ width:"100%", height:"160px", overflow:"hidden", position:"relative", flexShrink:0 }}>
-              <img src={localNote.coverImage} alt="Cover" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
-              <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, transparent 50%, var(--page-canvas-bg, #e8e8e8))" }} />
-            </div>
-          )}
-
-          {/* The page card — A4-proportion white sheet */}
-          <div className="note-page" style={{
-            background: editorBg || "#ffffff",
-            margin: "24px auto",
-            width: "min(210mm, calc(100% - 48px))",
-            minHeight: "297mm",
-            borderRadius: "2px",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.08)",
-            padding: "72px 80px",
-            position: "relative",
-          }}>
-            {/* Tags */}
-            {localNote.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-4">
-                {localNote.tags.map(nt => (
-                  <span key={nt.tagId} className="px-2 py-0.5 rounded-full"
-                    style={{ background:nt.tag.color+"20", color:nt.tag.color, fontSize:"11px" }}>
-                    {nt.tag.name}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Emoji */}
-            {localNote.emoji && (
-              <div className="mb-3">
-                <span style={{ fontSize:"44px" }}>{localNote.emoji}</span>
-              </div>
-            )}
-
-            {/* Title */}
-            <textarea
-              value={title}
-              onChange={handleTitleChange}
-              placeholder="Untitled"
-              rows={1}
-              className="w-full resize-none bg-transparent border-none outline-none"
-              style={{ fontFamily:"var(--font-display)", fontSize:"26px", fontWeight:500, color:"var(--text)", lineHeight:"1.25", marginBottom:"6px" }}
-              onInput={e => { const el=e.currentTarget; el.style.height="auto"; el.style.height=el.scrollHeight+"px"; }}
-            />
-
-            {/* Date + meta */}
-            <div className="flex items-center gap-3 mb-5">
-              <p style={{ fontSize:"11px", color:"var(--text-muted)" }}>
-                {format(new Date(localNote.updatedAt), "EEEE, MMMM d, yyyy · h:mm a")}
-              </p>
-              {localNote.isPinned && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📌 Pinned</span>}
-              {localNote.isArchived && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📦 Archived</span>}
-            </div>
-
-            {/* Todo progress bar */}
-            {todoStats && (
-              <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"20px" }}>
-                <div style={{ flex:1, height:"3px", borderRadius:"2px", background:"var(--border)", overflow:"hidden" }}>
-                  <div style={{
-                    height:"100%", borderRadius:"2px",
-                    background: todoStats.done === todoStats.total ? "#5DCAA5" : "var(--text)",
-                    width:`${Math.round((todoStats.done/todoStats.total)*100)}%`,
-                    transition:"width 0.3s ease, background 0.3s ease",
-                  }} />
+        {/* ── Shared inner content ─────────────────────────────────────────
+            We define this once and render it inside either the scroll wrapper
+            or the page-mode card, avoiding duplication.                      */}
+        {(() => {
+          const innerContent = (
+            <>
+              {/* Tags */}
+              {localNote.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {localNote.tags.map(nt => (
+                    <span key={nt.tagId} className="px-2 py-0.5 rounded-full"
+                      style={{ background:nt.tag.color+"20", color:nt.tag.color, fontSize:"11px" }}>
+                      {nt.tag.name}
+                    </span>
+                  ))}
                 </div>
-                <span style={{ fontSize:"11px", color:"var(--text-muted)", fontFamily:"var(--font-body)", whiteSpace:"nowrap" } as React.CSSProperties}>
-                  {todoStats.done} / {todoStats.total} · {Math.round((todoStats.done/todoStats.total)*100)}%
+              )}
+
+              {/* Emoji */}
+              {localNote.emoji && (
+                <div className="mb-3">
+                  <span style={{ fontSize:"44px" }}>{localNote.emoji}</span>
+                </div>
+              )}
+
+              {/* Title */}
+              <textarea
+                value={title}
+                onChange={handleTitleChange}
+                placeholder="Untitled"
+                rows={1}
+                className="w-full resize-none bg-transparent border-none outline-none"
+                style={{ fontFamily:"var(--font-display)", fontSize:"26px", fontWeight:500, color:"var(--text)", lineHeight:"1.25", marginBottom:"6px" }}
+                onInput={e => { const el=e.currentTarget; el.style.height="auto"; el.style.height=el.scrollHeight+"px"; }}
+              />
+
+              {/* Date + meta */}
+              <div className="flex items-center gap-3 mb-5">
+                <p style={{ fontSize:"11px", color:"var(--text-muted)" }}>
+                  {format(new Date(localNote.updatedAt), "EEEE, MMMM d, yyyy · h:mm a")}
+                </p>
+                {localNote.isPinned && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📌 Pinned</span>}
+                {localNote.isArchived && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📦 Archived</span>}
+              </div>
+
+              {/* Todo progress bar */}
+              {todoStats && (
+                <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"20px" }}>
+                  <div style={{ flex:1, height:"3px", borderRadius:"2px", background:"var(--border)", overflow:"hidden" }}>
+                    <div style={{
+                      height:"100%", borderRadius:"2px",
+                      background: todoStats.done === todoStats.total ? "#5DCAA5" : "var(--text)",
+                      width:`${Math.round((todoStats.done/todoStats.total)*100)}%`,
+                      transition:"width 0.3s ease, background 0.3s ease",
+                    }} />
+                  </div>
+                  <span style={{ fontSize:"11px", color:"var(--text-muted)", fontFamily:"var(--font-body)", whiteSpace:"nowrap" } as React.CSSProperties}>
+                    {todoStats.done} / {todoStats.total} · {Math.round((todoStats.done/todoStats.total)*100)}%
+                  </span>
+                </div>
+              )}
+
+              {/* Editor */}
+              <div
+                ref={editorRef}
+                contentEditable
+                suppressContentEditableWarning
+                spellCheck={false}
+                className="rich-editor"
+                data-placeholder="Start writing…"
+                onInput={handleContentChange}
+                onContextMenu={handleContextMenu}
+                onMouseDown={handleEditorMouseDown}
+                onClick={handleEditorClick}
+                onKeyDown={handleEditorKeyDown}
+                onDrop={handleDrop}
+                onPaste={e => {
+                  e.preventDefault();
+                  const html = e.clipboardData.getData("text/html");
+                  const text = e.clipboardData.getData("text/plain");
+                  document.execCommand("insertHTML", false, html || text.replace(/\n/g,"<br>"));
+                }}
+              />
+              {wordCount === 0 && (
+                <p style={{
+                  fontFamily:"var(--font-display)", fontSize:"14px",
+                  color:"var(--text-muted)", marginTop:"12px",
+                  pointerEvents:"none", userSelect:"none", opacity:0.45,
+                }}>
+                  Press{" "}
+                  <kbd style={{
+                    background:"var(--surface-hover)", border:"1px solid var(--border-light)",
+                    borderRadius:"4px", padding:"1px 6px", fontSize:"12px",
+                    fontFamily:"var(--font-mono)", color:"var(--text-muted)",
+                  }}>/</kbd>
+                  {" "}for commands, or just start writing…
+                </p>
+              )}
+            </>
+          );
+
+          // ── SCROLL mode (original) ─────────────────────────────────────
+          if (!pageMode) return (
+            <div className="flex-1 overflow-y-auto" onClick={closeAll}>
+              {localNote.coverImage && (
+                <div style={{ width:"100%", height:"180px", overflow:"hidden", position:"relative" }}>
+                  <img src={localNote.coverImage} alt="Cover" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                  <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, transparent 50%, var(--surface))" }} />
+                </div>
+              )}
+              <div className="max-w-2xl mx-auto px-6 py-6 md:px-10 pb-24 md:pb-8">
+                {innerContent}
+              </div>
+            </div>
+          );
+
+          // ── PAGE mode — A4 paper cards on grey canvas ──────────────────
+          return (
+            <div className="flex-1 overflow-y-auto nota-page-canvas" onClick={closeAll}>
+              {localNote.coverImage && (
+                <div style={{ width:"100%", height:"160px", overflow:"hidden", position:"relative" }}>
+                  <img src={localNote.coverImage} alt="Cover" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                  <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, transparent 50%, #f0ede8)" }} />
+                </div>
+              )}
+              {/* Page mode hint pill */}
+              <div style={{ display:"flex", justifyContent:"center", paddingTop:"16px" }}>
+                <span style={{
+                  fontSize:"10px", color:"#888", background:"rgba(0,0,0,0.08)",
+                  borderRadius:"999px", padding:"3px 10px",
+                  fontFamily:"var(--font-body)", letterSpacing:"0.04em",
+                }}>
+                  Page view · A4
                 </span>
               </div>
-            )}
-
-            {/* Editor */}
-            <div
-              ref={editorRef}
-              contentEditable
-              suppressContentEditableWarning
-              spellCheck={false}
-              className="rich-editor"
-              data-placeholder="Start writing…"
-              onInput={handleContentChange}
-              onContextMenu={handleContextMenu}
-              onMouseDown={handleEditorMouseDown}
-              onClick={handleEditorClick}
-              onKeyDown={handleEditorKeyDown}
-              onDrop={handleDrop}
-              onPaste={e => {
-                e.preventDefault();
-                const html = e.clipboardData.getData("text/html");
-                const text = e.clipboardData.getData("text/plain");
-                document.execCommand("insertHTML", false, html || text.replace(/\n/g,"<br>"));
-              }}
-            />
-            {wordCount === 0 && (
-              <p style={{
-                fontFamily:"var(--font-display)", fontSize:"14px",
-                color:"var(--text-muted)", marginTop:"12px",
-                pointerEvents:"none", userSelect:"none", opacity:0.45,
-              }}>
-                Press{" "}
-                <kbd style={{
-                  background:"var(--surface-hover)", border:"1px solid var(--border-light)",
-                  borderRadius:"4px", padding:"1px 6px", fontSize:"12px",
-                  fontFamily:"var(--font-mono)", color:"var(--text-muted)",
-                }}>/</kbd>
-                {" "}for commands, or just start writing…
-              </p>
-            )}
-          </div>
-
-          {/* Bottom breathing room */}
-          <div style={{ height:"48px" }} />
-        </div>
+              {/* The paper card */}
+              <div className="nota-page-card" style={{ background: editorBg || "var(--page-card-bg, #ffffff)" }}>
+                {innerContent}
+              </div>
+              <div style={{ height:"48px" }} />
+            </div>
+          );
+        })()}
 
         {/* Footer stats */}
         <div className="hidden md:flex items-center px-10 py-1.5 border-t flex-shrink-0"
@@ -871,7 +916,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
               ? ` · ${editorRef.current.innerText.trim().length} characters` : ""}
           </span>
           <span style={{ fontSize: "10px", color: "var(--text-muted)", marginLeft: "auto", opacity: 0.5 }}>
-            ⌘N new · ⌘B sidebar · / commands
+            {pageMode ? "Page view" : "⌘N new · ⌘B sidebar · / commands"}
           </span>
         </div>
 
