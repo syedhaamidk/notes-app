@@ -83,6 +83,27 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
     });
   };
 
+  // Page count — how many A4 pages the content currently spans
+  const [pageCount, setPageCount] = useState(1);
+  const pageCardRef = useRef<HTMLDivElement>(null);
+
+  // A4 page body height in px at 96dpi: 297mm ≈ 1122px
+  // We subtract padding (64px top + 64px bottom = 128px) for content area
+  const PAGE_CONTENT_H = 994; // px
+
+  useEffect(() => {
+    if (!pageMode || !pageCardRef.current) return;
+    const observer = new ResizeObserver(() => {
+      if (!pageCardRef.current) return;
+      const h = pageCardRef.current.scrollHeight;
+      // Each page is PAGE_CONTENT_H + 64px top padding + 64px bottom padding = 1122px
+      const pages = Math.max(1, Math.ceil(h / 1122));
+      setPageCount(pages);
+    });
+    observer.observe(pageCardRef.current);
+    return () => observer.disconnect();
+  }, [pageMode]);
+
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimeout = useRef<NodeJS.Timeout>();
   const titleRef = useRef(title);
@@ -879,7 +900,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
             </div>
           );
 
-          // ── PAGE mode — A4 paper cards on grey canvas ──────────────────
+          // ── PAGE mode — paginated A4 cards ────────────────────────────
           return (
             <div className="flex-1 overflow-y-auto nota-page-canvas" onClick={closeAll}>
               {localNote.coverImage && (
@@ -888,20 +909,89 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
                   <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, transparent 50%, #f0ede8)" }} />
                 </div>
               )}
-              {/* Page mode hint pill */}
-              <div style={{ display:"flex", justifyContent:"center", paddingTop:"16px" }}>
+
+              {/* Page counter pill */}
+              <div style={{ display:"flex", justifyContent:"center", paddingTop:"16px", paddingBottom:"4px" }}>
                 <span style={{
-                  fontSize:"10px", color:"#888", background:"rgba(0,0,0,0.08)",
+                  fontSize:"10px", color:"var(--text-muted)",
+                  background:"rgba(0,0,0,0.06)",
                   borderRadius:"999px", padding:"3px 10px",
                   fontFamily:"var(--font-body)", letterSpacing:"0.04em",
                 }}>
-                  Page view · A4
+                  {pageCount === 1 ? "Page view · A4" : `${pageCount} pages · A4`}
                 </span>
               </div>
-              {/* The paper card */}
-              <div className="nota-page-card" style={{ background: editorBg || "var(--page-card-bg, #ffffff)" }}>
+
+              {/* First page — contains the editor; grows with content */}
+              <div
+                ref={pageCardRef}
+                className="nota-page-card"
+                style={{
+                  background: editorBg || "var(--page-card-bg, #ffffff)",
+                  // Clamp at exactly one A4 page height — overflow spills into extra pages
+                  minHeight: "1122px",
+                  maxHeight: pageCount > 1 ? "1122px" : undefined,
+                  overflow: pageCount > 1 ? "hidden" : "visible",
+                  position: "relative",
+                }}
+              >
                 {innerContent}
+
+                {/* Subtle bottom-of-page rule when content will overflow */}
+                {pageCount > 1 && (
+                  <div style={{
+                    position:"absolute", bottom:0, left:"72px", right:"72px",
+                    height:"1px", background:"var(--border)", opacity:0.5,
+                  }} />
+                )}
               </div>
+
+              {/* Extra pages — rendered as empty continuation sheets */}
+              {Array.from({ length: pageCount - 1 }).map((_, i) => (
+                <div key={i}>
+                  {/* Page separator gap with page number */}
+                  <div style={{
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    height:"32px", gap:"10px",
+                  }}>
+                    <div style={{ flex:1, maxWidth:"80px", height:"0.5px", background:"var(--border)", opacity:0.4 }} />
+                    <span style={{ fontSize:"9px", color:"var(--text-muted)", fontFamily:"var(--font-body)", opacity:0.7 }}>
+                      Page {i + 2}
+                    </span>
+                    <div style={{ flex:1, maxWidth:"80px", height:"0.5px", background:"var(--border)", opacity:0.4 }} />
+                  </div>
+
+                  {/* Continuation page card — empty writing space */}
+                  <div className="nota-page-card" style={{
+                    background: editorBg || "var(--page-card-bg, #ffffff)",
+                    minHeight: "1122px",
+                  }}>
+                    {/* Faint ruled lines to indicate writeable area */}
+                    <div style={{ position:"relative", height:"100%", minHeight:"900px" }}>
+                      {Array.from({ length: 28 }).map((_, li) => (
+                        <div key={li} style={{
+                          position:"absolute",
+                          left:0, right:0,
+                          top:`${li * 32}px`,
+                          height:"0.5px",
+                          background:"var(--border)",
+                          opacity:0.25,
+                        }} />
+                      ))}
+                      <p style={{
+                        position:"absolute", top:"16px", left:0, right:0,
+                        textAlign:"center", fontSize:"11px",
+                        color:"var(--text-muted)", opacity:0.35,
+                        fontFamily:"var(--font-body)", fontStyle:"italic",
+                        pointerEvents:"none", userSelect:"none",
+                      }}>
+                        Continue writing on page {i + 2}…
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
               <div style={{ height:"48px" }} />
             </div>
           );
@@ -916,7 +1006,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
               ? ` · ${editorRef.current.innerText.trim().length} characters` : ""}
           </span>
           <span style={{ fontSize: "10px", color: "var(--text-muted)", marginLeft: "auto", opacity: 0.5 }}>
-            {pageMode ? "Page view" : "⌘N new · ⌘B sidebar · / commands"}
+            {pageMode ? `${pageCount} ${pageCount === 1 ? "page" : "pages"} · A4` : "⌘N new · ⌘B sidebar · / commands"}
           </span>
         </div>
 
