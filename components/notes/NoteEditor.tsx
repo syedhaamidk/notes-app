@@ -92,17 +92,16 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   const PAGE_CONTENT_H = 994; // px
 
   useEffect(() => {
-    if (!pageMode || !pageCardRef.current) return;
+    if (!pageCardRef.current) return;
     const observer = new ResizeObserver(() => {
       if (!pageCardRef.current) return;
       const h = pageCardRef.current.scrollHeight;
-      // Each page is PAGE_CONTENT_H + 64px top padding + 64px bottom padding = 1122px
       const pages = Math.max(1, Math.ceil(h / 1122));
       setPageCount(pages);
     });
     observer.observe(pageCardRef.current);
     return () => observer.disconnect();
-  }, [pageMode]);
+  }, [pageMode]); // re-attach when mode switches (ref target changes)
 
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimeout = useRef<NodeJS.Timeout>();
@@ -894,7 +893,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
                   <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, transparent 50%, var(--surface))" }} />
                 </div>
               )}
-              <div className="max-w-2xl mx-auto px-6 py-6 md:px-10 pb-24 md:pb-8">
+              <div ref={pageCardRef} className="max-w-2xl mx-auto px-6 py-6 md:px-10 pb-24 md:pb-8">
                 {innerContent}
               </div>
             </div>
@@ -999,7 +998,9 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
               ? ` · ${editorRef.current.innerText.trim().length} characters` : ""}
           </span>
           <span style={{ fontSize: "10px", color: "var(--text-muted)", marginLeft: "auto", opacity: 0.5 }}>
-            {pageMode ? `${pageCount} ${pageCount === 1 ? "page" : "pages"} · A4` : "⌘N new · ⌘B sidebar · / commands"}
+            {pageCount > 1
+              ? `${pageCount} pages · A4`
+              : pageMode ? "Page view · A4" : "⌘N new · ⌘B sidebar · / commands"}
           </span>
         </div>
 
