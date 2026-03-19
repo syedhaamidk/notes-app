@@ -9,7 +9,8 @@ import {
   Quote, Code, Minus, Link, Image as ImageIcon,
   Check, X, Table, Sparkles, Mic, RotateCcw, CheckSquare,
   AlignLeft, AlignCenter, AlignRight,
-  ArrowLeftFromLine, ArrowRightFromLine, ArrowLeftRight
+  ArrowLeftFromLine, ArrowRightFromLine, ArrowLeftRight,
+  GripVertical
 } from "lucide-react";
 import { ExportModal } from "../export/ExportModal";
 import { VoiceRecorder } from "./VoiceRecorder";
@@ -1070,11 +1071,7 @@ function AIPanel({ actions, loading, currentAction, result, onAction, onApply, o
   );
 }
 
-// ── Image resize + alignment overlay ─────────────────────────────────────────
-// Rendered outside the contenteditable so none of its DOM is ever saved to HTML.
-// Handles: 4 corners (proportional resize) + 4 edges (free resize).
-// Alignment: float left / center / float right.
-// Mobile: same handles respond to touch events.
+// ── Image resize + free-move overlay ─────────────────────────────────────────
 type HandlePos = "nw"|"n"|"ne"|"e"|"se"|"s"|"sw"|"w";
 const HANDLE_CURSORS: Record<HandlePos, string> = {
   nw:"nw-resize", n:"n-resize", ne:"ne-resize", e:"e-resize",
@@ -1088,80 +1085,105 @@ const HANDLE_POSITIONS: Record<HandlePos, React.CSSProperties> = {
 };
 
 function ImageResizer({ img, rect, onResize, onDone, onDelete, onDeselect }: {
-  img: HTMLImageElement;
-  rect: DOMRect;
-  onResize: () => void;
-  onDone: () => void;
-  onDelete: () => void;
-  onDeselect: () => void;
+  img: HTMLImageElement; rect: DOMRect;
+  onResize: () => void; onDone: () => void;
+  onDelete: () => void; onDeselect: () => void;
 }) {
-  // Close on Escape
-  useEffect(() => {
+  const { useEffect: ue, useCallback: ucb, useState: ust } = React;
+
+  const getCurrentTranslate = () => {
+    const m = img.style.transform?.match(/translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/);
+    return m ? { x: parseFloat(m[1]), y: parseFloat(m[2]) } : { x: 0, y: 0 };
+  };
+  const [pos, setPos] = ust(getCurrentTranslate);
+
+  ue(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onDeselect(); };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [onDeselect]);
 
-  const startResize = useCallback((e: React.MouseEvent | React.TouchEvent, handle: HandlePos) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const getXY = (ev: MouseEvent | TouchEvent) =>
+    "touches" in ev
+      ? { x: (ev as TouchEvent).touches[0].clientX, y: (ev as TouchEvent).touches[0].clientY }
+      : { x: (ev as MouseEvent).clientX, y: (ev as MouseEvent).clientY };
 
-    const isTouch = "touches" in e;
-    const getXY = (ev: MouseEvent | TouchEvent) =>
-      "touches" in ev
-        ? { x: ev.touches[0].clientX, y: ev.touches[0].clientY }
-        : { x: (ev as MouseEvent).clientX, y: (ev as MouseEvent).clientY };
-
-    const start = getXY(isTouch ? (e as React.TouchEvent).nativeEvent : (e as React.MouseEvent).nativeEvent);
+  // ── Resize ────────────────────────────────────────────────────────────────
+  const startResize = ucb((e: React.MouseEvent | React.TouchEvent, handle: HandlePos) => {
+    e.preventDefault(); e.stopPropagation();
+    const start  = getXY("touches" in e ? (e as React.TouchEvent).nativeEvent : (e as React.MouseEvent).nativeEvent);
     const startW = img.offsetWidth;
     const startH = img.offsetHeight;
     const aspect = startW / startH;
 
     const onMove = (ev: MouseEvent | TouchEvent) => {
       const cur = getXY(ev);
-      const dx = cur.x - start.x;
-      const dy = cur.y - start.y;
-
-      let newW = startW;
-
-      // Corner handles: proportional resize driven by horizontal delta
-      if (handle === "se" || handle === "ne") newW = Math.max(60, startW + dx);
-      else if (handle === "sw" || handle === "nw") newW = Math.max(60, startW - dx);
-      // Edge handles: free in one axis
-      else if (handle === "e") newW = Math.max(60, startW + dx);
-      else if (handle === "w") newW = Math.max(60, startW - dx);
-      else if (handle === "s") newW = Math.max(60, startH + dy) * aspect;
-      else if (handle === "n") newW = Math.max(60, startH - dy) * aspect;
-
-      img.style.width = `${Math.round(newW)}px`;
-      img.style.maxWidth = "none"; // clear CSS max-width: 100% so image can grow
-      img.style.height = "auto";
+      const dx  = cur.x - start.x;
+      const dy  = cur.y - start.y;
+      let newW  = startW;
+      if      (handle==="se"||handle==="ne"||handle==="e") newW = Math.max(40, startW + dx);
+      else if (handle==="sw"||handle==="nw"||handle==="w") newW = Math.max(40, startW - dx);
+      else if (handle==="s") newW = Math.max(40, startH + dy) * aspect;
+      else if (handle==="n") newW = Math.max(40, startH - dy) * aspect;
+      img.style.width    = `${Math.round(newW)}px`;
+      img.style.maxWidth = "none";
+      img.style.height   = "auto";
       onResize();
     };
-
     const onUp = () => {
       document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("mouseup",   onUp);
       document.removeEventListener("touchmove", onMove);
-      document.removeEventListener("touchend", onUp);
+      document.removeEventListener("touchend",  onUp);
       onDone();
     };
-
     document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
+    document.addEventListener("mouseup",   onUp);
     document.addEventListener("touchmove", onMove, { passive: false });
-    document.addEventListener("touchend", onUp);
+    document.addEventListener("touchend",  onUp);
   }, [img, onResize, onDone]);
 
+  // ── Move ──────────────────────────────────────────────────────────────────
+  const startMove = ucb((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    const start       = getXY("touches" in e ? (e as React.TouchEvent).nativeEvent : (e as React.MouseEvent).nativeEvent);
+    const { x: ox, y: oy } = getCurrentTranslate();
+    img.style.float    = "";
+    img.style.display  = "inline-block";
+    img.style.position = "relative";
+
+    const onMove = (ev: MouseEvent | TouchEvent) => {
+      ev.preventDefault();
+      const cur = getXY(ev);
+      const nx  = ox + (cur.x - start.x);
+      const ny  = oy + (cur.y - start.y);
+      img.style.transform = `translate(${nx}px, ${ny}px)`;
+      setPos({ x: Math.round(nx), y: Math.round(ny) });
+      onResize();
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup",   onUp);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend",  onUp);
+      onDone();
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup",   onUp);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend",  onUp);
+  }, [img, onResize, onDone]);
+
+  // ── Align ─────────────────────────────────────────────────────────────────
   const setAlign = (align: "left"|"center"|"right") => {
+    img.style.transform = ""; img.style.position = "";
+    setPos({ x: 0, y: 0 });
     if (align === "left") {
       img.style.float = "left"; img.style.display = "";
-      img.style.marginRight = "16px"; img.style.marginLeft = "0";
-      img.style.marginBottom = "8px";
+      img.style.marginRight = "16px"; img.style.marginLeft = "0"; img.style.marginBottom = "8px";
     } else if (align === "right") {
       img.style.float = "right"; img.style.display = "";
-      img.style.marginLeft = "16px"; img.style.marginRight = "0";
-      img.style.marginBottom = "8px";
+      img.style.marginLeft = "16px"; img.style.marginRight = "0"; img.style.marginBottom = "8px";
     } else {
       img.style.float = ""; img.style.display = "block";
       img.style.marginLeft = "auto"; img.style.marginRight = "auto";
@@ -1170,89 +1192,60 @@ function ImageResizer({ img, rect, onResize, onDone, onDelete, onDeselect }: {
   };
 
   const HANDLES: HandlePos[] = ["nw","n","ne","e","se","s","sw","w"];
-  const TOOLBAR_H = 36;
-  const toolbarTop = rect.top - TOOLBAR_H - 8;
-  const toolbarLeft = rect.left;
+  const moved = pos.x !== 0 || pos.y !== 0;
 
   return (
     <>
-      {/* Backdrop click to deselect */}
-      <div
-        style={{ position:"fixed", inset:0, zIndex:98 }}
-        onMouseDown={onDeselect}
-      />
+      <div style={{ position:"fixed", inset:0, zIndex:98 }} onMouseDown={onDeselect} />
 
-      {/* Selection border + handles */}
-      <div
-        style={{
-          position: "fixed",
-          top: rect.top,
-          left: rect.left,
-          width: rect.width,
-          height: rect.height,
-          zIndex: 99,
-          pointerEvents: "none",
-          outline: "2px solid #5DCAA5",
-          outlineOffset: "1px",
-          borderRadius: "2px",
-        }}
-      >
+      {/* Selection border + resize handles */}
+      <div style={{ position:"fixed", top:rect.top, left:rect.left, width:rect.width, height:rect.height,
+        zIndex:99, pointerEvents:"none", outline:"2px solid #5DCAA5", outlineOffset:"1px", borderRadius:"2px" }}>
         {HANDLES.map(h => (
-          <div
-            key={h}
-            style={{
-              position: "absolute",
-              width: 10, height: 10,
-              background: "#fff",
-              border: "2px solid #5DCAA5",
-              borderRadius: "2px",
-              cursor: HANDLE_CURSORS[h],
-              pointerEvents: "all",
-              zIndex: 100,
-              ...HANDLE_POSITIONS[h],
-            }}
-            onMouseDown={e => startResize(e, h)}
-            onTouchStart={e => startResize(e, h)}
-          />
+          <div key={h} style={{ position:"absolute", width:10, height:10, background:"#fff",
+            border:"2px solid #5DCAA5", borderRadius:"2px", cursor:HANDLE_CURSORS[h],
+            pointerEvents:"all", zIndex:100, ...HANDLE_POSITIONS[h] }}
+            onMouseDown={e => startResize(e, h)} onTouchStart={e => startResize(e, h)} />
         ))}
       </div>
 
-      {/* Toolbar above the image */}
-      <div
-        style={{
-          position: "fixed",
-          top: Math.max(8, toolbarTop),
-          left: Math.max(8, toolbarLeft),
-          zIndex: 101,
-          display: "flex",
-          alignItems: "center",
-          gap: "2px",
-          background: "var(--surface-elevated, #1f1f1f)",
-          border: "1px solid var(--border)",
-          borderRadius: "10px",
-          padding: "4px 6px",
-          boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
-          pointerEvents: "all",
-        }}
-        onMouseDown={e => e.stopPropagation()}
-      >
-        {/* Size readout */}
-        <span style={{ fontSize:"10px", color:"var(--text-muted)", padding:"0 4px", userSelect:"none" }}>
-          {Math.round(img.offsetWidth)} × {Math.round(img.offsetHeight)}
+      {/* Toolbar */}
+      <div style={{ position:"fixed", top:Math.max(8, rect.top - 46), left:Math.max(8, rect.left),
+        zIndex:101, display:"flex", alignItems:"center", gap:"2px",
+        background:"var(--surface-elevated, #1f1f1f)", border:"1px solid var(--border)",
+        borderRadius:"10px", padding:"4px 6px", boxShadow:"0 4px 16px rgba(0,0,0,0.25)",
+        pointerEvents:"all", userSelect:"none" as const }}
+        onMouseDown={e => e.stopPropagation()}>
+
+        {/* Move grip */}
+        <div title="Drag to reposition"
+          style={{ padding:"4px 5px", borderRadius:"6px", cursor:"grab", color:"var(--text-muted)",
+            display:"flex", alignItems:"center" }}
+          onMouseDown={startMove} onTouchStart={startMove}
+          onMouseEnter={e => (e.currentTarget.style.background="var(--surface-hover)")}
+          onMouseLeave={e => (e.currentTarget.style.background="transparent")}>
+          <GripVertical size={13} />
+        </div>
+        <div style={{ width:1, height:16, background:"var(--border)", margin:"0 2px" }} />
+
+        {/* Readout */}
+        <span style={{ fontSize:"10px", color:"var(--text-muted)", padding:"0 3px", whiteSpace:"nowrap" }}>
+          {Math.round(img.offsetWidth)}×{Math.round(img.offsetHeight)}
+          {moved && ` · ${pos.x>=0?"+":""}${pos.x}, ${pos.y>=0?"+":""}${pos.y}`}
         </span>
         <div style={{ width:1, height:16, background:"var(--border)", margin:"0 2px" }} />
 
-        {/* Alignment */}
+        {/* Align */}
         {([
-          { a: "left",   Icon: ArrowLeftFromLine,  title: "Align left"   },
-          { a: "center", Icon: ArrowLeftRight,      title: "Center"       },
-          { a: "right",  Icon: ArrowRightFromLine,  title: "Align right"  },
+          { a:"left",   Icon:ArrowLeftFromLine, title:"Float left"  },
+          { a:"center", Icon:ArrowLeftRight,    title:"Center"      },
+          { a:"right",  Icon:ArrowRightFromLine,title:"Float right" },
         ] as const).map(({ a, Icon, title }) => (
           <button key={a} onClick={() => setAlign(a)} title={title}
-            style={{ padding:"4px 6px", borderRadius:"6px", border:"none", background:"transparent",
+            style={{ padding:"4px 5px", borderRadius:"6px", border:"none", background:"transparent",
               color:"var(--text-secondary)", cursor:"pointer", display:"flex", alignItems:"center" }}
-            onMouseEnter={e => (e.currentTarget.style.background = "var(--surface-hover)")}
-            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+            onMouseEnter={e => (e.currentTarget.style.background="var(--surface-hover)")}
+            onMouseLeave={e => (e.currentTarget.style.background="transparent")}>
             <Icon size={13} />
           </button>
         ))}
@@ -1261,29 +1254,37 @@ function ImageResizer({ img, rect, onResize, onDone, onDelete, onDeselect }: {
         {/* Width presets */}
         {[25,50,75,100].map(pct => (
           <button key={pct} onClick={() => {
-            const parent = img.parentElement;
-            const maxW = parent ? parent.offsetWidth : 600;
-            img.style.width = `${Math.round(maxW * pct / 100)}px`;
+            img.style.width    = `${Math.round((img.parentElement?.offsetWidth ?? 600) * pct / 100)}px`;
             img.style.maxWidth = "none";
-            img.style.height = "auto";
+            img.style.height   = "auto";
             onDone();
-          }}
-            style={{ padding:"3px 6px", borderRadius:"6px", border:"none", background:"transparent",
-              color:"var(--text-secondary)", cursor:"pointer", fontSize:"10px", fontFamily:"var(--font-body)" }}
-            onMouseEnter={e => (e.currentTarget.style.background = "var(--surface-hover)")}
-            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+          }} style={{ padding:"3px 5px", borderRadius:"6px", border:"none", background:"transparent",
+            color:"var(--text-secondary)", cursor:"pointer", fontSize:"10px", fontFamily:"var(--font-body)" }}
+            onMouseEnter={e => (e.currentTarget.style.background="var(--surface-hover)")}
+            onMouseLeave={e => (e.currentTarget.style.background="transparent")}>
             {pct}%
           </button>
         ))}
+
+        {/* Reset position (only when moved) */}
+        {moved && (<>
+          <div style={{ width:1, height:16, background:"var(--border)", margin:"0 2px" }} />
+          <button onClick={() => { img.style.transform=""; img.style.position=""; setPos({x:0,y:0}); onDone(); }}
+            title="Reset position"
+            style={{ padding:"3px 6px", borderRadius:"6px", border:"none", background:"transparent",
+              color:"var(--text-muted)", cursor:"pointer", fontSize:"11px" }}
+            onMouseEnter={e => (e.currentTarget.style.background="var(--surface-hover)")}
+            onMouseLeave={e => (e.currentTarget.style.background="transparent")}>↺</button>
+        </>)}
         <div style={{ width:1, height:16, background:"var(--border)", margin:"0 2px" }} />
 
         {/* Delete */}
         <button onClick={onDelete} title="Delete image"
-          style={{ padding:"3px 7px", borderRadius:"6px", border:"none", background:"transparent",
-            color:"#cc0000", cursor:"pointer", fontSize:"13px" }}
-          onMouseEnter={e => (e.currentTarget.style.background = "rgba(204,0,0,0.08)")}
-          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-          ✕
+          style={{ padding:"4px 5px", borderRadius:"6px", border:"none", background:"transparent",
+            color:"#cc0000", cursor:"pointer", display:"flex", alignItems:"center" }}
+          onMouseEnter={e => (e.currentTarget.style.background="rgba(204,0,0,0.08)")}
+          onMouseLeave={e => (e.currentTarget.style.background="transparent")}>
+          <X size={13} />
         </button>
       </div>
     </>

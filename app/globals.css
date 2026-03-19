@@ -76,10 +76,11 @@ body {
   background: transparent;
   border: none;
   outline: none;
-  /* Prevent any unbroken string (URLs, random chars) from blowing out the layout */
+  /* Text wraps; images can overflow sideways */
   overflow-wrap: break-word;
   word-break: break-word;
-  overflow-x: hidden;
+  overflow-x: visible;
+  overflow-y: visible;
 }
 
 /* Apply word-break to every child so no text element can overflow */
