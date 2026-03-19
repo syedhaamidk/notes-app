@@ -648,12 +648,12 @@ const ExportPreview = React.forwardRef<HTMLDivElement, {
     });
 
   const styles: Record<Template, React.CSSProperties> = {
-    minimal:  { background:"#ffffff",                                         padding:"56px 52px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#1a1916", position:"relative", overflow:"hidden" },
-    journal:  { background:"linear-gradient(160deg,#fdf6e3,#f5e8cc)",         padding:"52px 48px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#3d2e1e", position:"relative", overflow:"hidden" },
-    dark:     { background:"#1a1916",                                         padding:"56px 52px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#e8e4dc", position:"relative", overflow:"hidden" },
-    pastel:   { background:"linear-gradient(145deg,#f5f0ff,#fce7f3)",         padding:"52px 48px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#2d1b4e", position:"relative", overflow:"hidden" },
-    elegant:  { background:"#f7f3ee", borderLeft:"4px solid #c4a882",         padding:"56px 52px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#2a2420", position:"relative", overflow:"hidden" },
-    custom:   {                                                                padding:"56px 52px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#1a1916", position:"relative", overflow:"hidden" },
+    minimal:  { background:"#ffffff",                                         padding:"56px 52px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#1a1916", position:"relative", overflow:"hidden", overflowWrap:"break-word", wordBreak:"break-word" },
+    journal:  { background:"linear-gradient(160deg,#fdf6e3,#f5e8cc)",         padding:"52px 48px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#3d2e1e", position:"relative", overflow:"hidden", overflowWrap:"break-word", wordBreak:"break-word" },
+    dark:     { background:"#1a1916",                                         padding:"56px 52px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#e8e4dc", position:"relative", overflow:"hidden", overflowWrap:"break-word", wordBreak:"break-word" },
+    pastel:   { background:"linear-gradient(145deg,#f5f0ff,#fce7f3)",         padding:"52px 48px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#2d1b4e", position:"relative", overflow:"hidden", overflowWrap:"break-word", wordBreak:"break-word" },
+    elegant:  { background:"#f7f3ee", borderLeft:"4px solid #c4a882",         padding:"56px 52px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#2a2420", position:"relative", overflow:"hidden", overflowWrap:"break-word", wordBreak:"break-word" },
+    custom:   {                                                                padding:"56px 52px", fontFamily:"Georgia,serif", minHeight:"500px", color:"#1a1916", position:"relative", overflow:"hidden", overflowWrap:"break-word", wordBreak:"break-word" },
   };
 
   const accents: Record<Template,string> = {
@@ -710,7 +710,7 @@ const ExportPreview = React.forwardRef<HTMLDivElement, {
                 ))}
               </div>
             )}
-            <div style={{ fontSize:"14px", lineHeight:"1.85", opacity:0.9 }}
+            <div style={{ fontSize:"14px", lineHeight:"1.85", opacity:0.9, overflowWrap:"break-word", wordBreak:"break-word", overflow:"hidden" }}
               dangerouslySetInnerHTML={{ __html: contentHtml||`<p style="opacity:0.4;font-style:italic">No content yet.</p>` }} />
           </>
         )}

@@ -76,6 +76,17 @@ body {
   background: transparent;
   border: none;
   outline: none;
+  /* Prevent any unbroken string (URLs, random chars) from blowing out the layout */
+  overflow-wrap: break-word;
+  word-break: break-word;
+  overflow-x: hidden;
+}
+
+/* Apply to every child element too so nothing escapes */
+.rich-editor * {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
 }
 
 .rich-editor:focus { outline: none; }
