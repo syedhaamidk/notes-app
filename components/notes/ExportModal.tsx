@@ -727,7 +727,7 @@ const ExportPreview = React.forwardRef<HTMLDivElement, {
 
   const baseStyle: React.CSSProperties = {
     width: `${PREVIEW_W}px`,
-    minHeight: `${previewH}px`,
+    minHeight: "auto",  // don't force a full page — let content size the card
     fontFamily: "Georgia,serif",
     position: "relative",
     // overflow must be visible so html2canvas captures the full content height.
