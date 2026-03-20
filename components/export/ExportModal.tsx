@@ -251,71 +251,26 @@ export function ExportModal({ note, onClose }: Props) {
     const pageH              = size.heightPt;
     const scaleRatio         = pageW / canvas.width;
     const pageHeightInCanvas = Math.round(pageH / scaleRatio);
+    const totalPages         = Math.ceil(canvas.height / pageHeightInCanvas);
 
-    // Line height at 2× scale (font 16px * line-height 1.85 * scale 2)
-    const LINE_H = Math.round(16 * 1.85 * 2); // ≈ 59px
-
-    // Find the nearest safe cut point just below a page boundary.
-    // We scan backwards from the boundary by up to 2 line-heights looking
-    // for a row that is mostly white (blank between paragraphs). This avoids
-    // slicing through the middle of a text line.
-    const findSafeCut = (boundary: number): number => {
-      const scanPx   = LINE_H * 2;
-      const sampleW  = Math.min(canvas.width, 200); // only sample centre strip
-      const startX   = Math.floor((canvas.width - sampleW) / 2);
-      const ctx2     = document.createElement("canvas").getContext("2d")!;
-      ctx2.canvas.width  = sampleW;
-      ctx2.canvas.height = 1;
-
-      for (let dy = 0; dy <= scanPx; dy++) {
-        const y = boundary - dy;
-        if (y < 0 || y >= canvas.height) continue;
-        ctx2.clearRect(0, 0, sampleW, 1);
-        ctx2.drawImage(canvas, startX, y, sampleW, 1, 0, 0, sampleW, 1);
-        const data = ctx2.getImageData(0, 0, sampleW, 1).data;
-        // Count dark pixels (text) in this row
-        let dark = 0;
-        for (let i = 0; i < data.length; i += 4) {
-          if (data[i] < 200) dark++;  // R channel — dark = text
-        }
-        if (dark < 3) return y; // mostly white row = safe cut
-      }
-      return boundary; // fallback: cut exactly at boundary
-    };
-
-    // Build the list of cut points
-    const cuts: number[] = [0];
-    let nextBoundary = pageHeightInCanvas;
-    while (nextBoundary < canvas.height) {
-      cuts.push(findSafeCut(nextBoundary));
-      nextBoundary += pageHeightInCanvas;
-    }
-    cuts.push(canvas.height);
-
-    // Create PDF — use the exact content height for the last page so it
-    // doesn't have a large blank area at the bottom
     const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: [pageW, pageH] });
 
-    for (let page = 0; page < cuts.length - 1; page++) {
-      const srcY      = cuts[page];
-      const srcHeight = Math.round(cuts[page + 1] - srcY);
-      if (srcHeight <= 0) continue;
+    for (let page = 0; page < totalPages; page++) {
+      if (page > 0) pdf.addPage([pageW, pageH], "portrait");
 
-      // For the last page use its actual content height, not the full pageH
-      const isLast     = page === cuts.length - 2;
-      const renderedH  = Math.round(srcHeight * scaleRatio);
-      const pageFormat = isLast ? [pageW, renderedH] : [pageW, pageH];
-
-      if (page > 0) pdf.addPage(pageFormat as [number, number], "portrait");
+      const srcY      = page * pageHeightInCanvas;
+      const srcHeight = Math.min(pageHeightInCanvas, canvas.height - srcY);
 
       const pageCanvas        = document.createElement("canvas");
       pageCanvas.width        = canvas.width;
-      pageCanvas.height       = srcHeight;
+      pageCanvas.height       = Math.round(srcHeight);
       const ctx = pageCanvas.getContext("2d")!;
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
       ctx.drawImage(canvas, 0, srcY, canvas.width, srcHeight, 0, 0, canvas.width, srcHeight);
 
+      // Place image at top of page — last page content won't stretch to fill
+      const renderedH = Math.round(srcHeight * scaleRatio);
       pdf.addImage(pageCanvas.toDataURL("image/png"), "PNG", 0, 0, pageW, renderedH);
     }
 
@@ -755,7 +710,7 @@ const ExportPreview = React.forwardRef<HTMLDivElement, {
   customBg: string|null; showWatermark: boolean; overrideContent?: string;
   pageSize: PageSizeId;
 }>(({ note, template, layoutTemplate, customBg, showWatermark, overrideContent, pageSize }, ref) => {
-  const date = dateFns(new Date(note.updatedAt), "MMMM d, yyyy");
+  const date = dateFns(new Date(note.updatedAt), "MMMM d, yyyy · h:mm a");
 
   // Derive preview width from the selected page size so aspect ratio is correct.
   // We use a fixed preview width of 600px and compute height from pt ratio.

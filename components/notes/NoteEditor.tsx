@@ -570,14 +570,18 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
           <ArrowLeft size={15} style={{ color:"var(--text-secondary)" }} />
         </button>
 
-        <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0" style={{ flexShrink: 1, overflow: "hidden" }}>
           <div style={{
             width: "6px", height: "6px", borderRadius: "50%", flexShrink: 0,
             background: saving ? "var(--text-muted)" : "var(--accent, #5DCAA5)",
             transition: "background 0.3s ease",
           }} />
-          <span style={{ fontSize: "11px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+          {/* Hide timestamp on mobile to prevent overlap with toolbar buttons */}
+          <span className="hidden sm:inline" style={{ fontSize: "11px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
             {saving ? "Saving…" : `Saved ${format(new Date(localNote.updatedAt), "h:mm a")}`}
+          </span>
+          <span className="sm:hidden" style={{ fontSize: "11px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+            {saving ? "Saving…" : "Saved"}
           </span>
         </div>
         <div className="flex-1" />
@@ -596,11 +600,13 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
           <Sparkles size={13} />
         </button>
 
-        {/* Page / Scroll mode toggle */}
-        <TBtn onClick={togglePageMode} active={pageMode}
-          title={pageMode ? "Switch to scroll view" : "Switch to page view"}>
-          {pageMode ? <LayoutTemplate size={14} /> : <FileText size={14} />}
-        </TBtn>
+        {/* Page / Scroll mode toggle — desktop only */}
+        <div className="hidden md:block">
+          <TBtn onClick={togglePageMode} active={pageMode}
+            title={pageMode ? "Switch to scroll view" : "Switch to page view"}>
+            {pageMode ? <LayoutTemplate size={14} /> : <FileText size={14} />}
+          </TBtn>
+        </div>
 
         {/* PIN */}
         <TBtn onClick={handlePin} active={localNote.isPinned} title={localNote.isPinned ? "Unpin" : "Pin note"}>
@@ -1041,6 +1047,37 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
       )}
 
       {showExport && <ExportModal note={localNote} onClose={() => setShowExport(false)} />}
+
+      {/* Mobile footer bar — page toggle + word count */}
+      <div className="md:hidden flex items-center justify-between px-4 border-t flex-shrink-0"
+        style={{
+          borderColor: "var(--border)",
+          background: editorBg,
+          height: "44px",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}>
+        {/* Word count */}
+        <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>
+          {wordCount} {wordCount === 1 ? "word" : "words"}
+          {pageCount > 1 ? ` · ${pageCount} pages` : ""}
+        </span>
+
+        {/* Page / Scroll toggle */}
+        <button
+          onClick={togglePageMode}
+          style={{
+            display: "flex", alignItems: "center", gap: "5px",
+            padding: "5px 10px", borderRadius: "8px",
+            border: `1px solid ${pageMode ? "var(--border)" : "var(--border-light)"}`,
+            background: pageMode ? "var(--surface-hover)" : "transparent",
+            color: pageMode ? "var(--text)" : "var(--text-muted)",
+            fontSize: "11px", fontFamily: "var(--font-body)",
+            cursor: "pointer",
+          }}>
+          {pageMode ? <LayoutTemplate size={12} /> : <FileText size={12} />}
+          {pageMode ? "Page view" : "Scroll view"}
+        </button>
+      </div>
 
       {/* Image resize overlay — rendered outside contenteditable so it's never saved */}
       {selectedImg && imgRect && (
