@@ -56,6 +56,8 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
   const [openMenu, setOpenMenu] = useState<string|null>(null);
   const [showExport, setShowExport] = useState(false);
   const [showVoice, setShowVoice] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{ message: string; onConfirm: () => void } | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
   const [showAI, setShowAI] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiAction, setAiAction] = useState("");
@@ -82,6 +84,14 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
       return next;
     });
   };
+
+  // Mobile detection
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   // Page count — how many A4 pages the content currently spans
   const [pageCount, setPageCount] = useState(1);
@@ -420,7 +430,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
 
   const handleDelete = () => {
     setOpenMenu(null);
-    if (confirm("Permanently delete this note? This cannot be undone.")) onDelete();
+    setConfirmModal({ message: "Permanently delete this note? This cannot be undone.", onConfirm: onDelete });
   };
 
   const handleAI = async (action: string) => {
@@ -789,7 +799,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
         <button className="format-btn" onClick={() => fmt("insertHorizontalRule")} title="Divider"><Minus size={12} /></button>
         <button className="format-btn" onClick={insertTodo} title="To-do list"><CheckSquare size={12} /></button>
         <button className="format-btn" onClick={() => {
-          if (confirm("Clear all content?")) { if(editorRef.current) editorRef.current.innerHTML=""; handleContentChange(); }
+          setConfirmModal({ message: "Clear all content?", onConfirm: () => { if(editorRef.current) editorRef.current.innerHTML=""; handleContentChange(); } });
         }} style={{ marginLeft:"auto", fontSize:"10px", color:"var(--text-muted)", padding:"0 8px" }}>Clear</button>
       </div>
 
@@ -1075,8 +1085,8 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
         </button>
       </div>
 
-      {/* Image resize overlay — rendered outside contenteditable so it's never saved */}
-      {selectedImg && imgRect && (
+      {/* Image resize overlay — desktop only; too complex for touch */}
+      {selectedImg && imgRect && !isMobile && (
         <ImageResizer
           img={selectedImg}
           rect={imgRect}
@@ -1161,6 +1171,67 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
           </button>
         </div>
       )}
+      {/* ── Custom confirm modal ── */}
+      {confirmModal && (
+        <div
+          onClick={() => setConfirmModal(null)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 300,
+            background: "rgba(0,0,0,0.6)",
+            backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: "0 24px",
+          }}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: "var(--surface-elevated, #1f1f1f)",
+              border: "1px solid var(--border)",
+              borderRadius: "18px",
+              padding: "24px 22px 20px",
+              width: "100%", maxWidth: "320px",
+              boxShadow: "0 20px 48px rgba(0,0,0,0.5)",
+            }}>
+            <p style={{
+              fontFamily: "var(--font-body)",
+              fontSize: "15px",
+              color: "var(--text)",
+              lineHeight: "1.5",
+              marginBottom: "20px",
+              textAlign: "center",
+            }}>{confirmModal.message}</p>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                onClick={() => setConfirmModal(null)}
+                style={{
+                  flex: 1, padding: "11px",
+                  background: "var(--surface-hover)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "12px",
+                  color: "var(--text-secondary)",
+                  fontSize: "14px", fontFamily: "var(--font-body)",
+                  cursor: "pointer",
+                }}>
+                Cancel
+              </button>
+              <button
+                onClick={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
+                style={{
+                  flex: 1, padding: "11px",
+                  background: "var(--danger, #cc0000)",
+                  border: "none",
+                  borderRadius: "12px",
+                  color: "#fff",
+                  fontSize: "14px", fontFamily: "var(--font-body)",
+                  fontWeight: 500, cursor: "pointer",
+                }}>
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showVoice && <VoiceRecorder onTranscript={handleVoiceInsert} onClose={() => setShowVoice(false)} />}
     </div>
   );

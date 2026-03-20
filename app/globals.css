@@ -47,7 +47,11 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html { color-scheme: light; }
+html {
+  color-scheme: light;
+  /* Edge-to-edge: extend app background behind status bar and home indicator */
+  height: 100%;
+}
 [data-theme="dark"] { color-scheme: dark; }
 
 body {
@@ -58,6 +62,17 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   transition: background 0.2s ease, color 0.2s ease;
+  /* Safe area — prevents content hiding under notch or home indicator */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Login page overrides — background extends behind status bar */
+body:has(.nota-login) {
+  padding-top: 0; /* login page handles its own top padding */
+  background: #0a0a0a;
 }
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -104,6 +119,13 @@ body {
     border-radius: 0 !important;
     border: none !important;
     padding: 32px 20px 120px !important;
+  }
+
+  /* Login: full bleed behind status bar + home indicator */
+  .nota-login {
+    min-height: 100dvh !important;
+    padding-top: env(safe-area-inset-top) !important;
+    padding-bottom: env(safe-area-inset-bottom) !important;
   }
 }
 

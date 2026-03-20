@@ -2,7 +2,7 @@
 import { Note } from "@/types";
 import { format } from "date-fns";
 import { Pin, Trash2, RotateCcw } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 interface Props {
   notes: Note[];
@@ -56,6 +56,11 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
 
   const NoteCard = ({ note }: { note: Note }) => {
     const [hovered, setHovered] = useState(false);
+    const [touchActive, setTouchActive] = useState(false);
+    const touchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const touchStartX = useRef(0);
+    const touchStartY = useRef(0);
+    const showActions = hovered || touchActive;
     const isSelected = selectedNote?.id === note.id;
     const bg = note.color ? (NOTE_COLORS[note.color] || "var(--surface)") : "var(--surface)";
     const isTodoNote = (note.content || "").includes('class="todo-item"') || (note.content || "").includes("todo-group");
@@ -106,7 +111,22 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
       <div
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        onClick={() => onSelect(note)}
+        onTouchStart={e => {
+          touchStartX.current = e.touches[0].clientX;
+          touchStartY.current = e.touches[0].clientY;
+          touchTimer.current = setTimeout(() => setTouchActive(true), 400);
+        }}
+        onTouchMove={e => {
+          const dx = Math.abs(e.touches[0].clientX - touchStartX.current);
+          const dy = Math.abs(e.touches[0].clientY - touchStartY.current);
+          if (dx > 8 || dy > 8) {
+            if (touchTimer.current) clearTimeout(touchTimer.current);
+          }
+        }}
+        onTouchEnd={() => {
+          if (touchTimer.current) clearTimeout(touchTimer.current);
+        }}
+        onClick={() => { if (touchActive) { setTouchActive(false); return; } onSelect(note); }}
         className="relative rounded-xl cursor-pointer transition-all"
         style={{
           background: isSelected ? "var(--surface-hover)" : bg,
@@ -123,7 +143,7 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
           }} />
         )}
 
-        <div className="p-3" style={{ paddingRight: hovered ? "72px" : "12px", transition: "padding-right 0.15s ease" }}>
+        <div className="p-3" style={{ paddingRight: showActions ? "72px" : "12px", transition: "padding-right 0.15s ease" }}>
           <div className="flex items-start gap-2">
             {note.emoji && (
               <span style={{ fontSize: "14px", lineHeight: "1.5", flexShrink: 0 }}>{note.emoji}</span>
@@ -182,8 +202,8 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
           </div>
         </div>
 
-        {/* Hover action buttons */}
-        {hovered && (
+        {/* Action buttons — hover on desktop, long-press on mobile */}
+        {showActions && (
           <div
             className="absolute flex items-center gap-1"
             style={{ top: "50%", right: "8px", transform: "translateY(-50%)" }}
@@ -227,10 +247,12 @@ export function NotesList({ notes, loading, selectedNote, filter, search = "", o
           </div>
         )}
 
-        {/* Mobile long-press hint — ··· always visible on touch */}
-        <div className="md:hidden absolute top-2 right-2" style={{ opacity: 0.3 }}>
-          <span style={{ fontSize: "16px", color: "var(--text-muted)", letterSpacing: "1px" }}>···</span>
-        </div>
+        {/* Mobile long-press hint dot — shows when actions are hidden */}
+        {!showActions && (
+          <div className="md:hidden absolute top-2 right-2" style={{ opacity: 0.25 }}>
+            <span style={{ fontSize: "14px", color: "var(--text-muted)", letterSpacing: "1px" }}>···</span>
+          </div>
+        )}
       </div>
     );
   };
