@@ -570,18 +570,14 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
           <ArrowLeft size={15} style={{ color:"var(--text-secondary)" }} />
         </button>
 
-        <div className="flex items-center gap-1.5 min-w-0" style={{ flexShrink: 1, overflow: "hidden" }}>
+        <div className="flex items-center gap-1.5" style={{ flexShrink: 0 }}>
           <div style={{
             width: "6px", height: "6px", borderRadius: "50%", flexShrink: 0,
             background: saving ? "var(--text-muted)" : "var(--accent, #5DCAA5)",
             transition: "background 0.3s ease",
           }} />
-          {/* Hide timestamp on mobile to prevent overlap with toolbar buttons */}
-          <span className="hidden sm:inline" style={{ fontSize: "11px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: "11px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
             {saving ? "Saving…" : `Saved ${format(new Date(localNote.updatedAt), "h:mm a")}`}
-          </span>
-          <span className="sm:hidden" style={{ fontSize: "11px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-            {saving ? "Saving…" : "Saved"}
           </span>
         </div>
         <div className="flex-1" />
@@ -839,7 +835,12 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
               {/* Date + meta */}
               <div className="flex items-center gap-3 mb-5">
                 <p style={{ fontSize:"11px", color:"var(--text-muted)" }}>
-                  {format(new Date(localNote.updatedAt), "EEEE, MMMM d, yyyy · h:mm a")}
+                  <span className="hidden md:inline">
+                    {format(new Date(localNote.updatedAt), "EEEE, MMMM d, yyyy · h:mm a")}
+                  </span>
+                  <span className="md:hidden">
+                    {format(new Date(localNote.updatedAt), "h:mm a")}
+                  </span>
                 </p>
                 {localNote.isPinned && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📌 Pinned</span>}
                 {localNote.isArchived && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📦 Archived</span>}
