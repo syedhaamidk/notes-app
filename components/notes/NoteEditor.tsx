@@ -835,12 +835,7 @@ export function NoteEditor({ note, tags, onUpdate, onTrash, onDelete, onBack, on
               {/* Date + meta */}
               <div className="flex items-center gap-3 mb-5">
                 <p style={{ fontSize:"11px", color:"var(--text-muted)" }}>
-                  <span className="hidden md:inline">
-                    {format(new Date(localNote.updatedAt), "EEEE, MMMM d, yyyy · h:mm a")}
-                  </span>
-                  <span className="md:hidden">
-                    {format(new Date(localNote.updatedAt), "h:mm a")}
-                  </span>
+                  {format(new Date(localNote.updatedAt), "EEEE, MMMM d, yyyy · h:mm a")}
                 </p>
                 {localNote.isPinned && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📌 Pinned</span>}
                 {localNote.isArchived && <span style={{ fontSize:"10px", color:"var(--text-muted)" }}>📦 Archived</span>}
