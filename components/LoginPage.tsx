@@ -137,6 +137,11 @@ export function LoginPage() {
   const [mousePos, setMousePos]         = useState({ x: 0.5, y: 0.5 });
   const [signingIn, setSigningIn]       = useState(false);
 
+  // PWA install prompt
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [installed, setInstalled]         = useState(false);
+
   // Note card
   const [noteTitle, setNoteTitle]       = useState("");
   const [noteBody, setNoteBody]         = useState("");
@@ -159,6 +164,13 @@ export function LoginPage() {
       setMousePos({ x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight });
     window.addEventListener("mousemove", onMouse);
 
+    // PWA install prompt
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const onBeforeInstall = (e: any) => { e.preventDefault(); setInstallPrompt(e); };
+    const onAppInstalled  = () => { setInstalled(true); setInstallPrompt(null); };
+    window.addEventListener("beforeinstallprompt", onBeforeInstall);
+    window.addEventListener("appinstalled", onAppInstalled);
+
     // Restore draft
     const t = localStorage.getItem("nota_draft_title") || "";
     const b = localStorage.getItem("nota_draft_body")  || "";
@@ -168,6 +180,8 @@ export function LoginPage() {
     return () => {
       window.removeEventListener("resize", checkMobile);
       window.removeEventListener("mousemove", onMouse);
+      window.removeEventListener("beforeinstallprompt", onBeforeInstall);
+      window.removeEventListener("appinstalled", onAppInstalled);
     };
   }, []);
 
@@ -200,6 +214,13 @@ export function LoginPage() {
   const handleSignIn = async () => {
     setSigningIn(true);
     await signIn("google", { callbackUrl: "/dashboard" });
+  };
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === "accepted") { setInstalled(true); setInstallPrompt(null); }
   };
 
   const modalTitle = noteTitle.trim()
@@ -529,6 +550,20 @@ export function LoginPage() {
             </button>
           </p>
 
+          {/* installed inline confirmation */}
+          {installed && (
+            <p style={{
+              marginTop:  "14px",
+              textAlign:  "center",
+              fontFamily: "Georgia, serif",
+              fontSize:   "13px",
+              color:      "#4a7a5a",
+              fontStyle:  "italic",
+            }}>
+              nota installed — see you there.
+            </p>
+          )}
+
           {/* Mobile mini note previews — original */}
           {isMobile && mounted && (
             <div style={{
@@ -706,6 +741,74 @@ export function LoginPage() {
               </button>
             </div>
           </div>
+        )}
+
+        {/* ── Floating install pill — zIndex 50, well below modal at 200 */}
+        {installPrompt && !installed && (
+          <button
+            onClick={handleInstall}
+            style={{
+              position:     "fixed",
+              bottom:       isMobile ? "24px" : "28px",
+              right:        isMobile ? "16px" : "28px",
+              zIndex:       50,
+              display:      "flex",
+              alignItems:   "center",
+              gap:          "10px",
+              padding:      isMobile ? "10px 16px 10px 11px" : "11px 20px 11px 13px",
+              background:   "#141311",
+              border:       "1px solid #2e2c29",
+              borderRadius: "100px",
+              cursor:       "pointer",
+              transition:   "border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease",
+              boxShadow:    "0 8px 28px rgba(0,0,0,0.55)",
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = "#4a4744";
+              e.currentTarget.style.transform   = "translateY(-2px)";
+              e.currentTarget.style.boxShadow   = "0 14px 36px rgba(0,0,0,0.65)";
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = "#2e2c29";
+              e.currentTarget.style.transform   = "translateY(0)";
+              e.currentTarget.style.boxShadow   = "0 8px 28px rgba(0,0,0,0.55)";
+            }}
+            onTouchStart={e => { e.currentTarget.style.transform = "scale(0.97)"; }}
+            onTouchEnd={e   => { e.currentTarget.style.transform = "scale(1)"; }}
+          >
+            <div style={{
+              width:          isMobile ? "26px" : "28px",
+              height:         isMobile ? "26px" : "28px",
+              borderRadius:   "50%",
+              background:     "#252220",
+              display:        "flex",
+              alignItems:     "center",
+              justifyContent: "center",
+              flexShrink:     0,
+            }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9a9690" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3v13M7 12l5 5 5-5"/>
+                <path d="M3 19h18"/>
+              </svg>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
+              <span style={{
+                fontSize:      "10px",
+                color:         "#4a4744",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                fontFamily:    "'DM Sans', sans-serif",
+                lineHeight:    "1",
+              }}>Get the app</span>
+              <span style={{
+                fontFamily: "Georgia, serif",
+                fontSize:   isMobile ? "12px" : "13px",
+                color:      "#9a9690",
+                fontStyle:  "italic",
+                lineHeight: "1.2",
+              }}>Install nota</span>
+            </div>
+          </button>
         )}
       </div>
     </>
